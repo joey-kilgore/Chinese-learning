@@ -1,4 +1,8 @@
 import { Article, HskLevel } from '../types';
+import { getMockArticle } from './mockData';
+
+// Set to false to use the real Claude API
+export const USE_MOCK = true;
 
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
 const MODEL = 'claude-opus-4-6';
@@ -47,6 +51,12 @@ export async function generateArticle(
   hskLevel: HskLevel,
   topic: string
 ): Promise<Article> {
+  if (USE_MOCK) {
+    // Simulate a short network delay so the loading state is visible
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    return getMockArticle(hskLevel, topic);
+  }
+
   const response = await fetch(CLAUDE_API_URL, {
     method: 'POST',
     headers: {

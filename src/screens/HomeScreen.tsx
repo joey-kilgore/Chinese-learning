@@ -15,7 +15,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useNavigation } from '@react-navigation/native';
 
-import { generateArticle } from '../services/claudeApi';
+import { generateArticle, USE_MOCK } from '../services/claudeApi';
 import { HskLevel, RootStackParamList } from '../types';
 
 const API_KEY_STORAGE_KEY = '@chinese_learning/api_key';
@@ -61,7 +61,7 @@ export function HomeScreen() {
 
   async function handleGenerate() {
     const apiKey = await AsyncStorage.getItem(API_KEY_STORAGE_KEY);
-    if (!apiKey?.trim()) {
+    if (!USE_MOCK && !apiKey?.trim()) {
       Alert.alert(
         'API Key Required',
         'Please add your Anthropic API key in Settings before generating articles.',
@@ -75,7 +75,7 @@ export function HomeScreen() {
 
     setLoading(true);
     try {
-      const article = await generateArticle(apiKey.trim(), hskLevel, topic);
+      const article = await generateArticle(apiKey?.trim() ?? '', hskLevel, topic);
       navigation.navigate('Article', { article });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'An unexpected error occurred.';
@@ -100,7 +100,15 @@ export function HomeScreen() {
           <Text style={styles.headerSubtitle}>Chinese Reading Generator</Text>
         </View>
 
-        {!hasApiKey && (
+        {USE_MOCK && (
+          <View style={styles.mockBanner}>
+            <Text style={styles.mockBannerText}>
+              Mock mode — using sample articles (no API calls)
+            </Text>
+          </View>
+        )}
+
+        {!USE_MOCK && !hasApiKey && (
           <TouchableOpacity
             style={styles.banner}
             onPress={() => navigation.navigate('Settings')}
@@ -204,6 +212,19 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     marginTop: 2,
+  },
+  mockBanner: {
+    backgroundColor: '#e8f4fd',
+    borderRadius: 10,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: '#aed6f1',
+    alignItems: 'center',
+  },
+  mockBannerText: {
+    color: '#1a5276',
+    fontSize: 13,
+    fontWeight: '500',
   },
   banner: {
     backgroundColor: '#fef3cd',
