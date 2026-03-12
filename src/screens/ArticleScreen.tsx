@@ -29,7 +29,6 @@ interface Token {
  */
 function parseTokens(chinese: string, pinyin: string): Token[] {
   const chars = Array.from(chinese);
-  // Strip trailing sentence-final punctuation from the pinyin string before splitting
   const syllables = pinyin.replace(/[.,!?。，！？]$/, '').trim().split(/\s+/);
   let sylIdx = 0;
   return chars.map((char) => {
@@ -44,7 +43,8 @@ function parseTokens(chinese: string, pinyin: string): Token[] {
 
 // ─── State types ─────────────────────────────────────────────────────────────
 
-type ActiveWord = { sentenceIdx: number; charIdx: number; stage: 1 | 2 } | null;
+// revealedPinyin[sentenceIdx] = Set of charIdx whose pinyin is visible
+type PinyinMap = Record<number, Set<number>>;
 
 // ─── Main screen ─────────────────────────────────────────────────────────────
 
@@ -52,24 +52,46 @@ export function ArticleScreen({ route }: Props) {
   const { article } = route.params;
   const [showPinyin, setShowPinyin] = useState(true);
   const [showTranslation, setShowTranslation] = useState(false);
-  const [activeWord, setActiveWord] = useState<ActiveWord>(null);
+  // Per-character pinyin accumulates as you tap; never auto-clears
+  const [revealedPinyin, setRevealedPinyin] = useState<PinyinMap>({});
+  // Per-sentence translation; revealed by tapping an already-annotated char
+  const [revealedTranslations, setRevealedTranslations] = useState<Set<number>>(new Set());
   const [expandedVocab, setExpandedVocab] = useState<string | null>(null);
 
   function handleCharPress(sentenceIdx: number, charIdx: number) {
-    if (
-      activeWord?.sentenceIdx === sentenceIdx &&
-      activeWord?.charIdx === charIdx
-    ) {
-      // Same character tapped again: advance stage 1 → 2, or clear at stage 2
-      setActiveWord(
-        activeWord.stage === 1
-          ? { sentenceIdx, charIdx, stage: 2 }
-          : null
-      );
+    const alreadyRevealed = revealedPinyin[sentenceIdx]?.has(charIdx) ?? false;
+
+    if (alreadyRevealed) {
+      // Second tap on a char with pinyin showing → reveal sentence translation
+      setRevealedTranslations((prev) => new Set([...prev, sentenceIdx]));
     } else {
-      // New character tapped: start at stage 1
-      setActiveWord({ sentenceIdx, charIdx, stage: 1 });
+      // First tap → add this char's pinyin to the sentence's reveal set
+      setRevealedPinyin((prev) => {
+        const existing = prev[sentenceIdx] ? new Set(prev[sentenceIdx]) : new Set<number>();
+        existing.add(charIdx);
+        return { ...prev, [sentenceIdx]: existing };
+      });
     }
+  }
+
+  function handleClearSentence(sentenceIdx: number) {
+    setRevealedPinyin((prev) => {
+      const next = { ...prev };
+      delete next[sentenceIdx];
+      return next;
+    });
+    setRevealedTranslations((prev) => {
+      const next = new Set(prev);
+      next.delete(sentenceIdx);
+      return next;
+    });
+  }
+
+  function hasSentenceNotes(sentenceIdx: number): boolean {
+    return (
+      (revealedPinyin[sentenceIdx]?.size ?? 0) > 0 ||
+      revealedTranslations.has(sentenceIdx)
+    );
   }
 
   return (
@@ -90,7 +112,7 @@ export function ArticleScreen({ route }: Props) {
 
       {/* Tap hint */}
       <Text style={styles.hint}>
-        Tap a character for pinyin · tap again for translation
+        Tap a character to reveal pinyin · tap it again to reveal the translation
       </Text>
 
       {/* Title */}
@@ -120,9 +142,9 @@ export function ArticleScreen({ route }: Props) {
       <View style={styles.articleBody}>
         {article.sentences.map((sentence, sentenceIdx) => {
           const tokens = parseTokens(sentence.chinese, sentence.pinyin);
-          const isActiveSentence = activeWord?.sentenceIdx === sentenceIdx;
+          const sentenceHasNotes = hasSentenceNotes(sentenceIdx);
           const showSentenceTranslation =
-            showTranslation || (isActiveSentence && activeWord?.stage === 2);
+            showTranslation || revealedTranslations.has(sentenceIdx);
 
           return (
             <View
@@ -135,19 +157,16 @@ export function ArticleScreen({ route }: Props) {
               {/* Ruby text row */}
               <View style={styles.rubyRow}>
                 {tokens.map((token, charIdx) => {
-                  const isThisWordActive =
-                    isActiveSentence && activeWord?.charIdx === charIdx;
-                  // Show pinyin for a char if: global toggle ON, or this specific char is tapped
+                  const isRevealed =
+                    !token.isPunct &&
+                    (revealedPinyin[sentenceIdx]?.has(charIdx) ?? false);
                   const pinyinOpacity =
-                    showPinyin || (isThisWordActive && !token.isPunct) ? 1 : 0;
+                    showPinyin || isRevealed ? 1 : 0;
 
                   if (token.isPunct) {
                     return (
                       <View key={charIdx} style={styles.charUnit}>
-                        {/* Spacer keeps punct row same height as interactive chars */}
-                        <Text style={[styles.syllable, { opacity: 0 }]}>
-                          {' '}
-                        </Text>
+                        <Text style={[styles.syllable, { opacity: 0 }]}>{' '}</Text>
                         <Text style={styles.punctChar}>{token.char}</Text>
                       </View>
                     );
@@ -169,7 +188,7 @@ export function ArticleScreen({ route }: Props) {
                       <Text
                         style={[
                           styles.chineseChar,
-                          isThisWordActive && styles.chineseCharActive,
+                          isRevealed && styles.chineseCharRevealed,
                         ]}
                       >
                         {token.char}
@@ -179,7 +198,19 @@ export function ArticleScreen({ route }: Props) {
                 })}
               </View>
 
-              {/* Sentence translation (appears on stage 2 or global toggle) */}
+              {/* Clear notes button — appears when any char or translation is annotated */}
+              {sentenceHasNotes && (
+                <View style={styles.clearRow}>
+                  <TouchableOpacity
+                    style={styles.clearButton}
+                    onPress={() => handleClearSentence(sentenceIdx)}
+                  >
+                    <Text style={styles.clearButtonText}>✕  clear notes</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {/* Sentence translation */}
               {showSentenceTranslation && (
                 <Text style={styles.sentenceEnglish}>{sentence.english}</Text>
               )}
@@ -404,7 +435,6 @@ const styles = StyleSheet.create({
     fontSize: SYLLABLE_SIZE,
     color: '#c0392b',
     textAlign: 'center',
-    // min width so the char doesn't collapse narrower than its pinyin
     minWidth: CHAR_SIZE,
     lineHeight: SYLLABLE_SIZE + 3,
   },
@@ -415,7 +445,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     minWidth: CHAR_SIZE,
   },
-  chineseCharActive: {
+  chineseCharRevealed: {
     color: '#c0392b',
   },
   punctChar: {
@@ -423,12 +453,35 @@ const styles = StyleSheet.create({
     color: '#1a1a1a',
     lineHeight: CHAR_SIZE + 4,
   },
+
+  // Clear notes button
+  clearRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: 2,
+    marginBottom: 2,
+  },
+  clearButton: {
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#f5c6c0',
+    backgroundColor: '#fff6f5',
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+  },
+  clearButtonText: {
+    fontSize: 11,
+    color: '#c0392b',
+    fontWeight: '600',
+  },
+
+  // Sentence translation
   sentenceEnglish: {
     fontSize: 14,
     color: '#666',
     lineHeight: 20,
     fontStyle: 'italic',
-    marginTop: 6,
+    marginTop: 4,
   },
 
   // Vocabulary
