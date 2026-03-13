@@ -108,8 +108,8 @@ export function HomeScreen() {
       >
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>汉语阅读</Text>
-          <Text style={styles.headerSubtitle}>Chinese Reading Generator</Text>
+          <Text style={styles.headerTitle}>可懂</Text>
+          <Text style={styles.headerSubtitle}>Comprehensible Chinese</Text>
         </View>
 
         {USE_SAVED && (

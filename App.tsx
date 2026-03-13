@@ -41,7 +41,7 @@ function AppNavigator() {
             name="Home"
             component={HomeScreen}
             options={({ navigation }) => ({
-              title: '汉语阅读',
+              title: '可懂',
               headerRight: () => (
                 <TouchableOpacity
                   onPress={() => navigation.navigate('Settings')}
