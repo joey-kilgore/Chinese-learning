@@ -15,7 +15,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useNavigation } from '@react-navigation/native';
 
-import { generateArticle, USE_MOCK } from '../services/claudeApi';
+import { generateArticle, USE_MOCK, DEV_API_KEY } from '../services/claudeApi';
 import { HskLevel, RootStackParamList } from '../types';
 
 const API_KEY_STORAGE_KEY = '@chinese_learning/api_key';
@@ -56,12 +56,12 @@ export function HomeScreen() {
 
   async function checkApiKey() {
     const key = await AsyncStorage.getItem(API_KEY_STORAGE_KEY);
-    setHasApiKey(!!key?.trim());
+    setHasApiKey(!!key?.trim() || !!DEV_API_KEY);
   }
 
   async function handleGenerate() {
     const apiKey = await AsyncStorage.getItem(API_KEY_STORAGE_KEY);
-    if (!USE_MOCK && !apiKey?.trim()) {
+    if (!USE_MOCK && !apiKey?.trim() && !DEV_API_KEY) {
       Alert.alert(
         'API Key Required',
         'Please add your Anthropic API key in Settings before generating articles.',

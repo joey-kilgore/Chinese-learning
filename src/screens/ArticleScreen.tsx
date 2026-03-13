@@ -24,6 +24,63 @@ interface Token {
 }
 
 /**
+ * Splits a pinyin string into exactly n syllables.
+ * Prefers whitespace splitting; falls back to finding syllable boundaries by
+ * locating tone marks (each syllable has exactly one) and backtracking to the
+ * start of its initial consonant cluster.
+ */
+function splitSyllables(pinyin: string, n: number): string[] {
+  if (n === 1) return [pinyin];
+
+  const bySpace = pinyin.trim().split(/\s+/);
+  if (bySpace.length === n) return bySpace;
+
+  // Fallback: split compact pinyin like "qǐchuáng" into ["qǐ","chuáng"].
+  // Strategy: find where each new syllable onset starts by scanning left from
+  // each tone mark to collect its initial consonant(s), then split there.
+  const TONE_RE = /[āáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜ]/g;
+  const INITIAL_RE = /^[bcdfghjklmnpqrstvwxyz]*/i;
+  const compact = pinyin.replace(/\s+/g, '');
+
+  // Collect positions of all tone marks
+  const tonePositions: number[] = [];
+  let m: RegExpExecArray | null;
+  TONE_RE.lastIndex = 0;
+  while ((m = TONE_RE.exec(compact)) !== null) {
+    tonePositions.push(m.index);
+  }
+
+  if (tonePositions.length !== n) {
+    // Can't reliably split — show everything on the first char
+    return [pinyin, ...new Array(n - 1).fill('')];
+  }
+
+  // For each tone mark (except the first), find where its syllable starts by
+  // walking left past any vowels/finals back to the start of its initial.
+  const splitPoints: number[] = [0];
+  for (let t = 1; t < tonePositions.length; t++) {
+    let pos = tonePositions[t];
+    // Walk left past any vowels that belong to this syllable's final
+    while (pos > 0 && /[aeiouāáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜ]/i.test(compact[pos - 1])) {
+      pos--;
+    }
+    // Walk left past the initial consonant cluster (e.g. "zh", "ch", "sh", single consonant)
+    const tail = compact.slice(pos);
+    const initLen = (INITIAL_RE.exec(tail)?.[0].length) ?? 0;
+    splitPoints.push(pos - initLen > splitPoints[splitPoints.length - 1]
+      ? pos - initLen
+      : pos);
+  }
+
+  const result: string[] = [];
+  for (let i = 0; i < splitPoints.length; i++) {
+    const end = i + 1 < splitPoints.length ? splitPoints[i + 1] : compact.length;
+    result.push(compact.slice(splitPoints[i], end));
+  }
+  return result.length === n ? result : [pinyin, ...new Array(n - 1).fill('')];
+}
+
+/**
  * Expands a sentence's word array into flat character tokens.
  * Each character in a multi-character word gets the same wordIdx so that
  * tapping any character in the word triggers a word-level action.
@@ -35,7 +92,7 @@ function parseWordTokens(words: Word[]): Token[] {
     const word = words[wordIdx];
     const isPunctWord = word.pinyin === '';
     const chars = Array.from(word.chinese);
-    const syllables = isPunctWord ? [] : word.pinyin.split(/\s+/);
+    const syllables = isPunctWord ? [] : splitSyllables(word.pinyin, chars.length);
 
     for (let i = 0; i < chars.length; i++) {
       tokens.push({
@@ -63,7 +120,7 @@ interface PopupState {
 
 export function ArticleScreen({ route }: Props) {
   const { article } = route.params;
-  const [showPinyin, setShowPinyin] = useState(true);
+  const [showPinyin, setShowPinyin] = useState(false);
   const [showTranslation, setShowTranslation] = useState(false);
   // Per-word pinyin accumulates as you tap
   const [revealedPinyin, setRevealedPinyin] = useState<PinyinMap>({});

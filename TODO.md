@@ -1,24 +1,40 @@
 # TODO
 
-## In Progress
-- [ ] Connect live Claude API (disable mock mode — set `USE_MOCK = false` in `src/services/claudeApi.ts`)
+## Next Up
+
+- [ ] User accounts — persist flagged words and article history across devices (AsyncStorage → backend)
+- [ ] Save/history — store previously generated articles locally with AsyncStorage first, then sync to account
+- [ ] Flashcard mode — quiz flagged words using spaced repetition; wire up the existing flag state to persistence
 
 ## Bugs / Polish
-- [ ] Fix CORS issue for direct API calls from web/browser builds — consider a lightweight proxy server or Expo EAS build for native
+
+- [ ] Fix CORS issue for direct API calls from web/browser builds — consider a lightweight proxy or Expo EAS build for native
 - [ ] Add error boundary so uncaught errors show a friendly message instead of a blank screen
 - [ ] Handle very long article titles overflowing the navigation header
 
 ## Features
-- [ ] Save/history — store previously generated articles locally so users can revisit them
-- [ ] User login / account — sync API key and history across devices (replace local AsyncStorage key)
-- [ ] Favorite sentences — let users star individual sentences for review
-- [ ] Flashcard mode — quiz the vocabulary list from an article using spaced repetition
+
 - [ ] Audio — text-to-speech playback for each sentence using a TTS API
 - [ ] More sample articles in `mockData.ts` — cover more HSK levels and topics
 - [ ] Topic suggestions per HSK level — beginner-appropriate topics for lower levels
 - [ ] Share article — export or share an article as text or PDF
 
 ## Infrastructure
+
 - [ ] Set up EAS Build for generating real iOS/Android `.ipa`/`.apk` files
 - [ ] Add ESLint + Prettier config
 - [ ] Write unit tests for `claudeApi.ts` prompt builder and JSON parser
+
+## Recently Completed
+
+- [x] Live Claude API tested end-to-end (USE_MOCK = false, key via .env)
+- [x] Dev API key via `.env` / `EXPO_PUBLIC_CLAUDE_API_KEY` — no Settings screen needed during development
+- [x] Article JSON written to `last_article.json` on device for easy mock data capture
+- [x] Pinyin off by default
+- [x] Fix JSON parse errors — strip markdown code fences from API response
+- [x] Fix pinyin stacking on multi-char words — syllable splitter with tone-mark fallback
+- [x] Word-level tap interaction — first tap reveals pinyin for whole word, second tap shows definition popup
+- [x] Word definition popup with flag/star button (words flagged in-memory, ready for persistence)
+- [x] Claude prompt generates word-level segmentation per sentence
+- [x] Accumulating pinyin reveals with per-sentence clear button
+- [x] Ruby pinyin layout and per-character tap interaction

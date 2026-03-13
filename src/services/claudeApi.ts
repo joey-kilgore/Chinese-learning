@@ -1,11 +1,17 @@
+import { File as EFSFile, Paths } from 'expo-file-system';
 import { Article, HskLevel } from '../types';
 import { getMockArticle } from './mockData';
 
 // Set to false to use the real Claude API
 export const USE_MOCK = true;
 
+// During development, set EXPO_PUBLIC_CLAUDE_API_KEY in a local .env file
+// (see .env.example). This is used as a fallback so you don't have to enter
+// the key via the Settings screen every time. Has no effect when USE_MOCK = true.
+export const DEV_API_KEY = process.env.EXPO_PUBLIC_CLAUDE_API_KEY ?? '';
+
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
-const MODEL = 'claude-opus-4-6';
+const MODEL = 'claude-haiku-4-5';
 
 function buildPrompt(hskLevel: HskLevel, topic: string): string {
   const topicLine = topic.trim()
@@ -52,7 +58,8 @@ Return ONLY a valid JSON object — no markdown, no explanation, just the JSON �
   ]
 }
 
-For the "words" array: segment each sentence into individual words (Chinese words are often 2-4 characters). Include every punctuation mark (。，！？、：；…) as a separate entry with empty pinyin and empty english. Every character in "chinese" must appear in exactly one word entry.`;
+For the "words" array: segment each sentence into individual words (Chinese words are often 2-4 characters). Include every punctuation mark (。，！？、：；…) as a separate entry with empty pinyin and empty english. Every character in "chinese" must appear in exactly one word entry.
+IMPORTANT: For multi-character words, always separate each syllable with a space in the "pinyin" field. One syllable per character, separated by spaces. Example: 起床 → "qǐ chuáng", NOT "qǐchuáng".`;
 }
 
 export async function generateArticle(
@@ -66,16 +73,21 @@ export async function generateArticle(
     return getMockArticle(hskLevel, topic);
   }
 
+  const resolvedKey = apiKey || DEV_API_KEY;
+  if (!resolvedKey) {
+    throw new Error('No API key provided. Add one in Settings or set EXPO_PUBLIC_CLAUDE_API_KEY in .env.');
+  }
+
   const response = await fetch(CLAUDE_API_URL, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'x-api-key': apiKey,
+      'x-api-key': resolvedKey,
       'anthropic-version': '2023-06-01',
     },
     body: JSON.stringify({
       model: MODEL,
-      max_tokens: 2048,
+      max_tokens: 8192,
       messages: [
         {
           role: 'user',
@@ -87,6 +99,7 @@ export async function generateArticle(
 
   if (!response.ok) {
     const errorBody = await response.text();
+    console.error('[claudeApi] HTTP error', response.status, errorBody);
     if (response.status === 401) {
       throw new Error('Invalid API key. Please check your Anthropic API key in Settings.');
     }
@@ -98,26 +111,54 @@ export async function generateArticle(
 
   const data = await response.json();
   const content = data?.content?.[0]?.text;
+  const stopReason = data?.stop_reason;
+  const usage = data?.usage;
+
+  console.log('[claudeApi] stop_reason:', stopReason);
+  console.log('[claudeApi] usage:', JSON.stringify(usage));
+  console.log('[claudeApi] response length (chars):', content?.length ?? 0);
+  console.log('[claudeApi] response (first 500 chars):', content?.slice(0, 500));
+  console.log('[claudeApi] response (last 200 chars):', content?.slice(-200));
+
+  if (stopReason === 'max_tokens') {
+    console.error('[claudeApi] Response was truncated — increase max_tokens');
+  }
 
   if (!content) {
     throw new Error('Empty response from Claude API.');
   }
 
+  // Strip markdown code fences Claude sometimes wraps the JSON in
+  const stripped = content.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+
   let parsed: Omit<Article, 'hsk_level' | 'topic'>;
   try {
-    parsed = JSON.parse(content);
-  } catch {
-    // Try extracting JSON from the response in case Claude added extra text
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    parsed = JSON.parse(stripped);
+  } catch (parseErr) {
+    console.error('[claudeApi] JSON parse error:', parseErr);
+    console.error('[claudeApi] Full response:', content);
+    // Last resort: extract the outermost {...} block
+    const jsonMatch = stripped.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
       throw new Error('Could not parse article from API response.');
     }
     parsed = JSON.parse(jsonMatch[0]);
   }
 
-  return {
+  const article = {
     ...parsed,
     hsk_level: hskLevel,
     topic: topic.trim() || 'General',
   };
+
+  // Write the full article JSON to a file for easy mock data capture
+  try {
+    const file = new EFSFile(Paths.document, 'last_article.json');
+    file.write(JSON.stringify(article, null, 2));
+    console.log('[claudeApi] Article written to:', file.uri);
+  } catch (fileErr) {
+    console.warn('[claudeApi] Could not write article to file:', fileErr);
+  }
+
+  return article;
 }
