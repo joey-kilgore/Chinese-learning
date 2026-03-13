@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
-import { Article, HskLevel, Word } from '../types';
+import { Article, FlaggedWordRow, HskLevel, Sentence, Word } from '../types';
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY!;
@@ -53,7 +53,7 @@ export async function fetchFlaggedWords(): Promise<Set<string>> {
   return new Set((data ?? []).map((r: any) => r.chinese));
 }
 
-export async function flagWord(word: Word): Promise<void> {
+export async function flagWord(word: Word, sentence?: Sentence): Promise<void> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return;
   const { error } = await supabase.from('flagged_words').insert({
@@ -61,8 +61,52 @@ export async function flagWord(word: Word): Promise<void> {
     chinese: word.chinese,
     pinyin: word.pinyin,
     english: word.english,
+    example_sentence: sentence?.chinese ?? null,
+    example_sentence_english: sentence?.english ?? null,
   });
   if (error) console.warn('[supabase] flagWord error:', error.message);
+}
+
+export async function fetchDueFlashcards(): Promise<FlaggedWordRow[]> {
+  const now = new Date().toISOString();
+  const { data, error } = await supabase
+    .from('flagged_words')
+    .select('id, chinese, pinyin, english, example_sentence, example_sentence_english, interval, repetitions, due_date')
+    .lte('due_date', now)
+    .order('due_date', { ascending: true });
+  if (error) { console.warn('[supabase] fetchDueFlashcards error:', error.message); return []; }
+  return (data ?? []) as FlaggedWordRow[];
+}
+
+// Pass/fail spaced repetition: intervals grow as 1→6→15→38→... days (×2.5 each time)
+export async function updateFlashcardReview(id: string, passed: boolean): Promise<void> {
+  const { data, error: fetchError } = await supabase
+    .from('flagged_words')
+    .select('interval, repetitions')
+    .eq('id', id)
+    .single();
+  if (fetchError || !data) { console.warn('[supabase] updateFlashcardReview fetch error:', fetchError?.message); return; }
+
+  let { interval, repetitions } = data as { interval: number; repetitions: number };
+
+  if (passed) {
+    if (repetitions === 0) interval = 1;
+    else if (repetitions === 1) interval = 6;
+    else interval = Math.round(interval * 2.5);
+    repetitions += 1;
+  } else {
+    repetitions = 0;
+    interval = 1;
+  }
+
+  const due = new Date();
+  due.setDate(due.getDate() + interval);
+
+  const { error } = await supabase
+    .from('flagged_words')
+    .update({ interval, repetitions, due_date: due.toISOString() })
+    .eq('id', id);
+  if (error) console.warn('[supabase] updateFlashcardReview update error:', error.message);
 }
 
 export async function unflagWord(chinese: string): Promise<void> {

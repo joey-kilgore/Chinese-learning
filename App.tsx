@@ -3,12 +3,14 @@ import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'rea
 import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { useFonts, NotoSerifSC_400Regular, NotoSerifSC_700Bold } from '@expo-google-fonts/noto-serif-sc';
 
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { ArticleScreen } from './src/screens/ArticleScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
+import { FlashcardScreen } from './src/screens/FlashcardScreen';
 import { RootStackParamList } from './src/types';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -59,6 +61,11 @@ function AppNavigator() {
             })}
           />
           <Stack.Screen
+            name="Flashcards"
+            component={FlashcardScreen}
+            options={{ title: 'Flashcards', headerBackTitle: 'Back' }}
+          />
+          <Stack.Screen
             name="Settings"
             component={SettingsScreen}
             options={{ title: 'Settings', headerBackTitle: 'Back' }}
@@ -76,6 +83,16 @@ function AppNavigator() {
 }
 
 export default function App() {
+  const [fontsLoaded] = useFonts({ NotoSerifSC_400Regular, NotoSerifSC_700Bold });
+
+  if (!fontsLoaded) {
+    return (
+      <View style={styles.loading}>
+        <ActivityIndicator size="large" color="#c0392b" />
+      </View>
+    );
+  }
+
   return (
     <AuthProvider>
       <NavigationContainer>

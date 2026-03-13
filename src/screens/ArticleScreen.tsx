@@ -9,8 +9,9 @@ import {
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 
-import { RootStackParamList, VocabularyItem, Word } from '../types';
+import { RootStackParamList, Sentence, VocabularyItem, Word } from '../types';
 import { fetchFlaggedWords, flagWord, unflagWord } from '../services/supabase';
+import { FONT_CHINESE, FONT_CHINESE_BOLD } from '../styles/fonts';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Article'>;
 
@@ -115,6 +116,7 @@ type PinyinMap = Record<number, Set<number>>;
 
 interface PopupState {
   word: Word;
+  sentence: Sentence;
 }
 
 // ─── Main screen ─────────────────────────────────────────────────────────────
@@ -142,7 +144,7 @@ export function ArticleScreen({ route }: Props) {
 
     if (alreadyRevealed) {
       // Second tap on a revealed word → show definition popup
-      setPopup({ word });
+      setPopup({ word, sentence: article.sentences[sentenceIdx] });
     } else {
       // First tap → reveal pinyin for the whole word
       setRevealedPinyin((prev) => {
@@ -173,7 +175,7 @@ export function ArticleScreen({ route }: Props) {
     );
   }
 
-  function handleToggleFlag(word: Word) {
+  function handleToggleFlag(word: Word, sentence: Sentence) {
     const chinese = word.chinese;
     const wasFlagged = flaggedWords.has(chinese);
     // Optimistic update
@@ -182,7 +184,7 @@ export function ArticleScreen({ route }: Props) {
       if (wasFlagged) { next.delete(chinese); } else { next.add(chinese); }
       return next;
     });
-    if (wasFlagged) { unflagWord(chinese); } else { flagWord(word); }
+    if (wasFlagged) { unflagWord(chinese); } else { flagWord(word, sentence); }
   }
 
   return (
@@ -337,7 +339,7 @@ export function ArticleScreen({ route }: Props) {
           word={popup.word}
           isFlagged={flaggedWords.has(popup.word.chinese)}
           onClose={() => setPopup(null)}
-          onToggleFlag={() => handleToggleFlag(popup.word)}
+          onToggleFlag={() => handleToggleFlag(popup.word, popup.sentence)}
         />
       )}
     </ScrollView>
@@ -505,7 +507,7 @@ const styles = StyleSheet.create({
   },
   titleChinese: {
     fontSize: 26,
-    fontWeight: '800',
+    fontFamily: FONT_CHINESE_BOLD,
     color: '#1a1a1a',
     letterSpacing: 1,
   },
@@ -581,6 +583,7 @@ const styles = StyleSheet.create({
   },
   chineseChar: {
     fontSize: CHAR_SIZE,
+    fontFamily: FONT_CHINESE,
     color: '#1a1a1a',
     lineHeight: CHAR_SIZE + 4,
     textAlign: 'center',
@@ -591,6 +594,7 @@ const styles = StyleSheet.create({
   },
   punctChar: {
     fontSize: CHAR_SIZE,
+    fontFamily: FONT_CHINESE,
     color: '#1a1a1a',
     lineHeight: CHAR_SIZE + 4,
   },
@@ -653,7 +657,7 @@ const styles = StyleSheet.create({
   },
   popupChinese: {
     fontSize: 36,
-    fontWeight: '800',
+    fontFamily: FONT_CHINESE_BOLD,
     color: '#1a1a1a',
     letterSpacing: 2,
     flex: 1,
@@ -723,7 +727,7 @@ const styles = StyleSheet.create({
   },
   vocabWord: {
     fontSize: 22,
-    fontWeight: '700',
+    fontFamily: FONT_CHINESE_BOLD,
     color: '#1a1a1a',
   },
   vocabPinyin: {

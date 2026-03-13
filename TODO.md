@@ -4,7 +4,7 @@
 
 - [x] Persist flagged words to Supabase — wire existing in-memory flag state to `flagged_words` table
 - [x] Article history — save generated articles to Supabase `article_history` table, show list on Home screen
-- [ ] Flashcard mode — quiz flagged words using spaced repetition
+- [x] Flashcard mode — quiz flagged words using spaced repetition
 
 ## Bugs / Polish
 

@@ -200,6 +200,14 @@ export function HomeScreen() {
           words for comprehensible i+1 learning.
         </Text>
 
+        {/* Flashcard Button */}
+        <TouchableOpacity
+          style={styles.flashcardButton}
+          onPress={() => navigation.navigate('Flashcards')}
+        >
+          <Text style={styles.flashcardButtonText}>Review Flashcards</Text>
+        </TouchableOpacity>
+
         {history.length > 0 && (
           <View style={styles.historySection}>
             <Text style={styles.historySectionTitle}>Recent Articles</Text>
@@ -353,6 +361,19 @@ const styles = StyleSheet.create({
   chipTextActive: {
     color: '#c0392b',
     fontWeight: '600',
+  },
+  flashcardButton: {
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#c0392b',
+    backgroundColor: '#fff',
+  },
+  flashcardButtonText: {
+    color: '#c0392b',
+    fontSize: 16,
+    fontWeight: '700',
   },
   generateButton: {
     backgroundColor: '#c0392b',

@@ -34,5 +34,18 @@ export type RootStackParamList = {
   Login: undefined;
   Home: undefined;
   Article: { article: Article };
+  Flashcards: undefined;
   Settings: undefined;
 };
+
+export interface FlaggedWordRow {
+  id: string;
+  chinese: string;
+  pinyin: string;
+  english: string;
+  example_sentence: string | null;
+  example_sentence_english: string | null;
+  interval: number;
+  repetitions: number;
+  due_date: string;
+}
