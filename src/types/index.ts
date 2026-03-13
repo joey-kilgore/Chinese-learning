@@ -1,9 +1,16 @@
 export type HskLevel = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
 
+export interface Word {
+  chinese: string;
+  pinyin: string;   // empty string for punctuation
+  english: string;  // empty string for punctuation
+}
+
 export interface Sentence {
   chinese: string;
   pinyin: string;
   english: string;
+  words: Word[];
 }
 
 export interface VocabularyItem {

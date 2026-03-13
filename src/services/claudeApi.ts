@@ -32,7 +32,14 @@ Return ONLY a valid JSON object — no markdown, no explanation, just the JSON �
     {
       "chinese": "Full Chinese sentence using characters",
       "pinyin": "Pinyin for the sentence with tone marks",
-      "english": "Natural English translation"
+      "english": "Natural English translation",
+      "words": [
+        {
+          "chinese": "word or punctuation mark",
+          "pinyin": "pinyin for this word (empty string for punctuation)",
+          "english": "concise English gloss for this word (empty string for punctuation)"
+        }
+      ]
     }
   ],
   "vocabulary": [
@@ -43,7 +50,9 @@ Return ONLY a valid JSON object — no markdown, no explanation, just the JSON �
       "hsk_level": 3
     }
   ]
-}`;
+}
+
+For the "words" array: segment each sentence into individual words (Chinese words are often 2-4 characters). Include every punctuation mark (。，！？、：；…) as a separate entry with empty pinyin and empty english. Every character in "chinese" must appear in exactly one word entry.`;
 }
 
 export async function generateArticle(

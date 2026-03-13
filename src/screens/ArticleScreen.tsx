@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import {
+  Modal,
   ScrollView,
   StyleSheet,
   Text,
@@ -8,43 +9,55 @@ import {
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 
-import { RootStackParamList, VocabularyItem } from '../types';
+import { RootStackParamList, VocabularyItem, Word } from '../types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Article'>;
 
 // ─── Parsing ────────────────────────────────────────────────────────────────
 
-const PUNCT_RE = /[。，！？、：；—…""''（）【】《》.,!?;:]/;
-
 interface Token {
   char: string;
-  syllable: string; // empty for punctuation
+  syllable: string;
   isPunct: boolean;
+  wordIdx: number; // index into the sentence's words array; -1 for punctuation
+  word: Word | null;
 }
 
 /**
- * Splits a sentence into character+syllable pairs.
- * One Chinese character always maps to exactly one space-separated pinyin syllable.
- * Punctuation characters are given an empty syllable and marked as non-interactive.
+ * Expands a sentence's word array into flat character tokens.
+ * Each character in a multi-character word gets the same wordIdx so that
+ * tapping any character in the word triggers a word-level action.
+ * Punctuation words (pinyin === '') produce tokens with isPunct = true.
  */
-function parseTokens(chinese: string, pinyin: string): Token[] {
-  const chars = Array.from(chinese);
-  const syllables = pinyin.replace(/[.,!?。，！？]$/, '').trim().split(/\s+/);
-  let sylIdx = 0;
-  return chars.map((char) => {
-    const isPunct = PUNCT_RE.test(char);
-    return {
-      char,
-      syllable: isPunct ? '' : (syllables[sylIdx++] ?? ''),
-      isPunct,
-    };
-  });
+function parseWordTokens(words: Word[]): Token[] {
+  const tokens: Token[] = [];
+  for (let wordIdx = 0; wordIdx < words.length; wordIdx++) {
+    const word = words[wordIdx];
+    const isPunctWord = word.pinyin === '';
+    const chars = Array.from(word.chinese);
+    const syllables = isPunctWord ? [] : word.pinyin.split(/\s+/);
+
+    for (let i = 0; i < chars.length; i++) {
+      tokens.push({
+        char: chars[i],
+        syllable: isPunctWord ? '' : (syllables[i] ?? ''),
+        isPunct: isPunctWord,
+        wordIdx: isPunctWord ? -1 : wordIdx,
+        word: isPunctWord ? null : word,
+      });
+    }
+  }
+  return tokens;
 }
 
 // ─── State types ─────────────────────────────────────────────────────────────
 
-// revealedPinyin[sentenceIdx] = Set of charIdx whose pinyin is visible
+// revealedPinyin[sentenceIdx] = Set of wordIdx whose pinyin is visible
 type PinyinMap = Record<number, Set<number>>;
+
+interface PopupState {
+  word: Word;
+}
 
 // ─── Main screen ─────────────────────────────────────────────────────────────
 
@@ -52,23 +65,27 @@ export function ArticleScreen({ route }: Props) {
   const { article } = route.params;
   const [showPinyin, setShowPinyin] = useState(true);
   const [showTranslation, setShowTranslation] = useState(false);
-  // Per-character pinyin accumulates as you tap; never auto-clears
+  // Per-word pinyin accumulates as you tap
   const [revealedPinyin, setRevealedPinyin] = useState<PinyinMap>({});
-  // Per-sentence translation; revealed by tapping an already-annotated char
+  // Per-sentence translation
   const [revealedTranslations, setRevealedTranslations] = useState<Set<number>>(new Set());
   const [expandedVocab, setExpandedVocab] = useState<string | null>(null);
+  // Word definition popup
+  const [popup, setPopup] = useState<PopupState | null>(null);
+  // Words flagged for flashcard review
+  const [flaggedWords, setFlaggedWords] = useState<Set<string>>(new Set());
 
-  function handleCharPress(sentenceIdx: number, charIdx: number) {
-    const alreadyRevealed = revealedPinyin[sentenceIdx]?.has(charIdx) ?? false;
+  function handleCharPress(sentenceIdx: number, wordIdx: number, word: Word) {
+    const alreadyRevealed = revealedPinyin[sentenceIdx]?.has(wordIdx) ?? false;
 
     if (alreadyRevealed) {
-      // Second tap on a char with pinyin showing → reveal sentence translation
-      setRevealedTranslations((prev) => new Set([...prev, sentenceIdx]));
+      // Second tap on a revealed word → show definition popup
+      setPopup({ word });
     } else {
-      // First tap → add this char's pinyin to the sentence's reveal set
+      // First tap → reveal pinyin for the whole word
       setRevealedPinyin((prev) => {
         const existing = prev[sentenceIdx] ? new Set(prev[sentenceIdx]) : new Set<number>();
-        existing.add(charIdx);
+        existing.add(wordIdx);
         return { ...prev, [sentenceIdx]: existing };
       });
     }
@@ -94,6 +111,18 @@ export function ArticleScreen({ route }: Props) {
     );
   }
 
+  function handleToggleFlag(chinese: string) {
+    setFlaggedWords((prev) => {
+      const next = new Set(prev);
+      if (next.has(chinese)) {
+        next.delete(chinese);
+      } else {
+        next.add(chinese);
+      }
+      return next;
+    });
+  }
+
   return (
     <ScrollView contentContainerStyle={styles.container}>
       {/* Global toggle controls */}
@@ -112,7 +141,7 @@ export function ArticleScreen({ route }: Props) {
 
       {/* Tap hint */}
       <Text style={styles.hint}>
-        Tap a character to reveal pinyin · tap it again to reveal the translation
+        Tap a word to reveal pinyin · tap again for definition
       </Text>
 
       {/* Title */}
@@ -141,7 +170,7 @@ export function ArticleScreen({ route }: Props) {
       {/* Article body */}
       <View style={styles.articleBody}>
         {article.sentences.map((sentence, sentenceIdx) => {
-          const tokens = parseTokens(sentence.chinese, sentence.pinyin);
+          const tokens = parseWordTokens(sentence.words);
           const sentenceHasNotes = hasSentenceNotes(sentenceIdx);
           const showSentenceTranslation =
             showTranslation || revealedTranslations.has(sentenceIdx);
@@ -156,16 +185,16 @@ export function ArticleScreen({ route }: Props) {
             >
               {/* Ruby text row */}
               <View style={styles.rubyRow}>
-                {tokens.map((token, charIdx) => {
+                {tokens.map((token, tokenIdx) => {
                   const isRevealed =
                     !token.isPunct &&
-                    (revealedPinyin[sentenceIdx]?.has(charIdx) ?? false);
+                    (revealedPinyin[sentenceIdx]?.has(token.wordIdx) ?? false);
                   const pinyinOpacity =
                     showPinyin || isRevealed ? 1 : 0;
 
                   if (token.isPunct) {
                     return (
-                      <View key={charIdx} style={styles.charUnit}>
+                      <View key={tokenIdx} style={styles.charUnit}>
                         <Text style={[styles.syllable, { opacity: 0 }]}>{' '}</Text>
                         <Text style={styles.punctChar}>{token.char}</Text>
                       </View>
@@ -174,9 +203,9 @@ export function ArticleScreen({ route }: Props) {
 
                   return (
                     <TouchableOpacity
-                      key={charIdx}
+                      key={tokenIdx}
                       style={styles.charUnit}
-                      onPress={() => handleCharPress(sentenceIdx, charIdx)}
+                      onPress={() => handleCharPress(sentenceIdx, token.wordIdx, token.word!)}
                       activeOpacity={0.5}
                     >
                       <Text
@@ -198,7 +227,7 @@ export function ArticleScreen({ route }: Props) {
                 })}
               </View>
 
-              {/* Clear notes button — appears when any char or translation is annotated */}
+              {/* Clear notes button */}
               {sentenceHasNotes && (
                 <View style={styles.clearRow}>
                   <TouchableOpacity
@@ -239,6 +268,16 @@ export function ArticleScreen({ route }: Props) {
           ))}
         </View>
       )}
+
+      {/* Word definition popup */}
+      {popup && (
+        <WordPopup
+          word={popup.word}
+          isFlagged={flaggedWords.has(popup.word.chinese)}
+          onClose={() => setPopup(null)}
+          onToggleFlag={() => handleToggleFlag(popup.word.chinese)}
+        />
+      )}
     </ScrollView>
   );
 }
@@ -263,6 +302,46 @@ function ToggleButton({
         {label}
       </Text>
     </TouchableOpacity>
+  );
+}
+
+function WordPopup({
+  word,
+  isFlagged,
+  onClose,
+  onToggleFlag,
+}: {
+  word: Word;
+  isFlagged: boolean;
+  onClose: () => void;
+  onToggleFlag: () => void;
+}) {
+  return (
+    <Modal transparent animationType="fade" visible onRequestClose={onClose}>
+      <View style={styles.popupOverlay}>
+        {/* Dismiss layer behind the card */}
+        <TouchableOpacity
+          style={StyleSheet.absoluteFillObject}
+          onPress={onClose}
+          activeOpacity={1}
+        />
+        <View style={styles.popupCard}>
+          <View style={styles.popupTopRow}>
+            <Text style={styles.popupChinese}>{word.chinese}</Text>
+            <TouchableOpacity onPress={onToggleFlag} style={styles.popupFlagButton}>
+              <Text style={[styles.popupFlagIcon, isFlagged && styles.popupFlagIconActive]}>
+                {isFlagged ? '★' : '☆'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+          <Text style={styles.popupPinyin}>{word.pinyin}</Text>
+          <Text style={styles.popupEnglish}>{word.english}</Text>
+          {isFlagged && (
+            <Text style={styles.popupFlaggedNote}>Flagged for review</Text>
+          )}
+        </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -482,6 +561,69 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     fontStyle: 'italic',
     marginTop: 4,
+  },
+
+  // Word popup
+  popupOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 32,
+  },
+  popupCard: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 24,
+    width: '100%',
+    maxWidth: 320,
+    gap: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  popupTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  popupChinese: {
+    fontSize: 36,
+    fontWeight: '800',
+    color: '#1a1a1a',
+    letterSpacing: 2,
+    flex: 1,
+  },
+  popupFlagButton: {
+    padding: 4,
+    marginTop: 4,
+  },
+  popupFlagIcon: {
+    fontSize: 24,
+    color: '#ccc',
+  },
+  popupFlagIconActive: {
+    color: '#e67e22',
+  },
+  popupPinyin: {
+    fontSize: 16,
+    color: '#c0392b',
+    letterSpacing: 0.5,
+    marginTop: 2,
+  },
+  popupEnglish: {
+    fontSize: 17,
+    color: '#333',
+    lineHeight: 24,
+    marginTop: 6,
+  },
+  popupFlaggedNote: {
+    fontSize: 12,
+    color: '#e67e22',
+    marginTop: 4,
+    fontStyle: 'italic',
   },
 
   // Vocabulary
