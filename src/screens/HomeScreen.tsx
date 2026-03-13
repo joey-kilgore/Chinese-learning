@@ -15,7 +15,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useNavigation } from '@react-navigation/native';
 
-import { generateArticle, USE_MOCK, DEV_API_KEY } from '../services/claudeApi';
+import { generateArticle, USE_SAVED, DEV_API_KEY } from '../services/claudeApi';
+import { saveArticle, fetchArticleHistory, ArticleHistoryRow } from '../services/supabase';
 import { HskLevel, RootStackParamList } from '../types';
 
 const API_KEY_STORAGE_KEY = '@chinese_learning/api_key';
@@ -47,12 +48,22 @@ export function HomeScreen() {
   const [topic, setTopic] = useState('');
   const [loading, setLoading] = useState(false);
   const [hasApiKey, setHasApiKey] = useState(false);
+  const [history, setHistory] = useState<ArticleHistoryRow[]>([]);
 
   useEffect(() => {
-    const unsubscribe = navigation.addListener('focus', checkApiKey);
+    const unsubscribe = navigation.addListener('focus', () => {
+      checkApiKey();
+      loadHistory();
+    });
     checkApiKey();
+    loadHistory();
     return unsubscribe;
   }, [navigation]);
+
+  async function loadHistory() {
+    const rows = await fetchArticleHistory();
+    setHistory(rows);
+  }
 
   async function checkApiKey() {
     const key = await AsyncStorage.getItem(API_KEY_STORAGE_KEY);
@@ -61,7 +72,7 @@ export function HomeScreen() {
 
   async function handleGenerate() {
     const apiKey = await AsyncStorage.getItem(API_KEY_STORAGE_KEY);
-    if (!USE_MOCK && !apiKey?.trim() && !DEV_API_KEY) {
+    if (!USE_SAVED && !apiKey?.trim() && !DEV_API_KEY) {
       Alert.alert(
         'API Key Required',
         'Please add your Anthropic API key in Settings before generating articles.',
@@ -76,6 +87,7 @@ export function HomeScreen() {
     setLoading(true);
     try {
       const article = await generateArticle(apiKey?.trim() ?? '', hskLevel, topic);
+      saveArticle(article); // fire-and-forget; don't block navigation
       navigation.navigate('Article', { article });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'An unexpected error occurred.';
@@ -100,15 +112,15 @@ export function HomeScreen() {
           <Text style={styles.headerSubtitle}>Chinese Reading Generator</Text>
         </View>
 
-        {USE_MOCK && (
+        {USE_SAVED && (
           <View style={styles.mockBanner}>
             <Text style={styles.mockBannerText}>
-              Mock mode — using sample articles (no API calls)
+              Using saved articles — no API calls
             </Text>
           </View>
         )}
 
-        {!USE_MOCK && !hasApiKey && (
+        {!USE_SAVED && !hasApiKey && (
           <TouchableOpacity
             style={styles.banner}
             onPress={() => navigation.navigate('Settings')}
@@ -187,6 +199,28 @@ export function HomeScreen() {
           Articles use HSK {hskLevel} vocabulary with a few level-{Math.min(hskLevel + 1, 9)}{' '}
           words for comprehensible i+1 learning.
         </Text>
+
+        {history.length > 0 && (
+          <View style={styles.historySection}>
+            <Text style={styles.historySectionTitle}>Recent Articles</Text>
+            {history.map((row) => (
+              <TouchableOpacity
+                key={row.id}
+                style={styles.historyCard}
+                onPress={() => navigation.navigate('Article', { article: row.article })}
+              >
+                <View style={styles.historyCardHeader}>
+                  <Text style={styles.historyCardChinese}>{row.article.title}</Text>
+                  <Text style={styles.historyCardBadge}>HSK {row.article.hsk_level}</Text>
+                </View>
+                <Text style={styles.historyCardEnglish}>{row.article.title_english}</Text>
+                <Text style={styles.historyCardMeta}>
+                  {row.article.topic} · {new Date(row.created_at).toLocaleDateString()}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -344,5 +378,53 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#999',
     paddingBottom: 8,
+  },
+  historySection: {
+    gap: 8,
+  },
+  historySectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1a1a1a',
+  },
+  historyCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 14,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
+    gap: 4,
+  },
+  historyCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  historyCardChinese: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1a1a1a',
+    flex: 1,
+  },
+  historyCardBadge: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#c0392b',
+    backgroundColor: '#fff0ee',
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    overflow: 'hidden',
+  },
+  historyCardEnglish: {
+    fontSize: 13,
+    color: '#444',
+  },
+  historyCardMeta: {
+    fontSize: 12,
+    color: '#999',
   },
 });

@@ -1,9 +1,10 @@
 import { File as EFSFile, Paths } from 'expo-file-system';
 import { Article, HskLevel } from '../types';
 import { getMockArticle } from './mockData';
+import { fetchRandomArticle } from './supabase';
 
-// Set to false to use the real Claude API
-export const USE_MOCK = true;
+// Set to true to skip Claude API calls and serve a random saved article from the DB
+export const USE_SAVED = true;
 
 // During development, set EXPO_PUBLIC_CLAUDE_API_KEY in a local .env file
 // (see .env.example). This is used as a fallback so you don't have to enter
@@ -67,10 +68,11 @@ export async function generateArticle(
   hskLevel: HskLevel,
   topic: string
 ): Promise<Article> {
-  if (USE_MOCK) {
-    // Simulate a short network delay so the loading state is visible
-    await new Promise((resolve) => setTimeout(resolve, 800));
-    return getMockArticle(hskLevel, topic);
+  if (USE_SAVED) {
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    const saved = await fetchRandomArticle(hskLevel);
+    if (saved) return saved;
+    return getMockArticle(hskLevel, topic); // fallback if DB is empty
   }
 
   const resolvedKey = apiKey || DEV_API_KEY;

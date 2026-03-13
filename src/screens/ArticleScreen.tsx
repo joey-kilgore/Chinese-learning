@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Modal,
   ScrollView,
@@ -10,6 +10,7 @@ import {
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 import { RootStackParamList, VocabularyItem, Word } from '../types';
+import { fetchFlaggedWords, flagWord, unflagWord } from '../services/supabase';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Article'>;
 
@@ -132,6 +133,10 @@ export function ArticleScreen({ route }: Props) {
   // Words flagged for flashcard review
   const [flaggedWords, setFlaggedWords] = useState<Set<string>>(new Set());
 
+  useEffect(() => {
+    fetchFlaggedWords().then(setFlaggedWords);
+  }, []);
+
   function handleCharPress(sentenceIdx: number, wordIdx: number, word: Word) {
     const alreadyRevealed = revealedPinyin[sentenceIdx]?.has(wordIdx) ?? false;
 
@@ -168,16 +173,16 @@ export function ArticleScreen({ route }: Props) {
     );
   }
 
-  function handleToggleFlag(chinese: string) {
+  function handleToggleFlag(word: Word) {
+    const chinese = word.chinese;
+    const wasFlagged = flaggedWords.has(chinese);
+    // Optimistic update
     setFlaggedWords((prev) => {
       const next = new Set(prev);
-      if (next.has(chinese)) {
-        next.delete(chinese);
-      } else {
-        next.add(chinese);
-      }
+      if (wasFlagged) { next.delete(chinese); } else { next.add(chinese); }
       return next;
     });
+    if (wasFlagged) { unflagWord(chinese); } else { flagWord(word); }
   }
 
   return (
@@ -332,7 +337,7 @@ export function ArticleScreen({ route }: Props) {
           word={popup.word}
           isFlagged={flaggedWords.has(popup.word.chinese)}
           onClose={() => setPopup(null)}
-          onToggleFlag={() => handleToggleFlag(popup.word.chinese)}
+          onToggleFlag={() => handleToggleFlag(popup.word)}
         />
       )}
     </ScrollView>
