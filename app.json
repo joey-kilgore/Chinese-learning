@@ -24,6 +24,10 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "scheme": "chinese-learning",
+    "plugins": [
+      "expo-web-browser"
+    ]
   }
 }

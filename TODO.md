@@ -2,9 +2,9 @@
 
 ## Next Up
 
-- [ ] User accounts — persist flagged words and article history across devices (AsyncStorage → backend)
-- [ ] Save/history — store previously generated articles locally with AsyncStorage first, then sync to account
-- [ ] Flashcard mode — quiz flagged words using spaced repetition; wire up the existing flag state to persistence
+- [ ] Persist flagged words to Supabase — wire existing in-memory flag state to `flagged_words` table
+- [ ] Article history — save generated articles to Supabase `article_history` table, show list on Home screen
+- [ ] Flashcard mode — quiz flagged words using spaced repetition
 
 ## Bugs / Polish
 
@@ -21,12 +21,16 @@
 
 ## Infrastructure
 
-- [ ] Set up EAS Build for generating real iOS/Android `.ipa`/`.apk` files
+- [ ] Set up EAS Build for generating real iOS/Android `.ipa`/`.apk` files (also fixes OAuth redirect URL stability — replaces dynamic `exp://` with stable `chinese-learning://`)
 - [ ] Add ESLint + Prettier config
 - [ ] Write unit tests for `claudeApi.ts` prompt builder and JSON parser
 
 ## Recently Completed
 
+- [x] Google OAuth sign-in via Supabase — session persists across app restarts
+- [x] Auth gate — Login screen shown when signed out, main app when signed in
+- [x] Sign out button in Settings screen with signed-in email display
+- [x] Supabase project setup — `flagged_words` and `article_history` tables with row-level security
 - [x] Live Claude API tested end-to-end (USE_MOCK = false, key via .env)
 - [x] Dev API key via `.env` / `EXPO_PUBLIC_CLAUDE_API_KEY` — no Settings screen needed during development
 - [x] Article JSON written to `last_article.json` on device for easy mock data capture

@@ -31,6 +31,7 @@ export interface Article {
 }
 
 export type RootStackParamList = {
+  Login: undefined;
   Home: undefined;
   Article: { article: Article };
   Settings: undefined;

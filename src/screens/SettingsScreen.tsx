@@ -12,10 +12,12 @@ import {
   View,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useAuth } from '../contexts/AuthContext';
 
 const API_KEY_STORAGE_KEY = '@chinese_learning/api_key';
 
 export function SettingsScreen() {
+  const { user, signOut } = useAuth();
   const [apiKey, setApiKey] = useState('');
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -100,6 +102,14 @@ export function SettingsScreen() {
         </View>
 
         <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Account</Text>
+          <Text style={styles.description}>Signed in as {user?.email}</Text>
+          <TouchableOpacity style={styles.signOutButton} onPress={signOut}>
+            <Text style={styles.signOutButtonText}>Sign out</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.card}>
           <Text style={styles.sectionTitle}>About</Text>
           <Text style={styles.description}>
             This app uses the Claude API to generate Chinese reading articles tailored to your HSK
@@ -181,5 +191,18 @@ const styles = StyleSheet.create({
   clearButtonText: {
     color: '#c0392b',
     fontSize: 14,
+  },
+  signOutButton: {
+    borderWidth: 1.5,
+    borderColor: '#c0392b',
+    borderRadius: 8,
+    paddingVertical: 12,
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  signOutButtonText: {
+    color: '#c0392b',
+    fontSize: 15,
+    fontWeight: '600',
   },
 });
