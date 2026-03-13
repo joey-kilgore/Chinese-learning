@@ -1,17 +1,20 @@
-import { File as EFSFile, Paths } from 'expo-file-system';
+import { Platform } from 'react-native';
 import { Article, HskLevel } from '../types';
 import { getMockArticle } from './mockData';
 import { fetchRandomArticle } from './supabase';
 
 // Set to true to skip Claude API calls and serve a random saved article from the DB
-export const USE_SAVED = true;
+export const USE_SAVED = false;
 
 // During development, set EXPO_PUBLIC_CLAUDE_API_KEY in a local .env file
 // (see .env.example). This is used as a fallback so you don't have to enter
 // the key via the Settings screen every time. Has no effect when USE_MOCK = true.
 export const DEV_API_KEY = process.env.EXPO_PUBLIC_CLAUDE_API_KEY ?? '';
 
-const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
+// On web, route through the Vercel proxy to avoid CORS; on native, call Anthropic directly.
+const CLAUDE_API_URL = Platform.OS === 'web'
+  ? '/api/claude'
+  : 'https://api.anthropic.com/v1/messages';
 const MODEL = 'claude-haiku-4-5';
 
 function buildPrompt(hskLevel: HskLevel, topic: string): string {
@@ -153,13 +156,16 @@ export async function generateArticle(
     topic: topic.trim() || 'General',
   };
 
-  // Write the full article JSON to a file for easy mock data capture
-  try {
-    const file = new EFSFile(Paths.document, 'last_article.json');
-    file.write(JSON.stringify(article, null, 2));
-    console.log('[claudeApi] Article written to:', file.uri);
-  } catch (fileErr) {
-    console.warn('[claudeApi] Could not write article to file:', fileErr);
+  // Write the full article JSON to a file for easy mock data capture (dev/native only)
+  if (__DEV__ && Platform.OS !== 'web') {
+    try {
+      const { File: EFSFile, Paths } = await import('expo-file-system');
+      const file = new EFSFile(Paths.document, 'last_article.json');
+      file.write(JSON.stringify(article, null, 2));
+      console.log('[claudeApi] Article written to:', file.uri);
+    } catch (fileErr) {
+      console.warn('[claudeApi] Could not write article to file:', fileErr);
+    }
   }
 
   return article;

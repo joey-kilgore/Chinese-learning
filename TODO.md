@@ -8,7 +8,7 @@
 
 ## Bugs / Polish
 
-- [ ] Fix CORS issue for direct API calls from web/browser builds — consider a lightweight proxy or Expo EAS build for native
+- [x] Fix CORS issue for direct API calls from web/browser builds — Vercel proxy at /api/claude
 - [ ] Add error boundary so uncaught errors show a friendly message instead of a blank screen
 - [ ] Handle very long article titles overflowing the navigation header
 
