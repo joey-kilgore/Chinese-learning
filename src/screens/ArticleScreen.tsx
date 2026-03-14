@@ -10,7 +10,7 @@ import {
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 import { RootStackParamList, Sentence, VocabularyItem, Word } from '../types';
-import { fetchFlaggedWords, flagWord, unflagWord } from '../services/supabase';
+import { fetchFlaggedWords, flagWord, unflagWord, incrementArticleViews } from '../services/supabase';
 import { FONT_CHINESE, FONT_CHINESE_BOLD } from '../styles/fonts';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Article'>;
@@ -136,7 +136,15 @@ export function ArticleScreen({ route }: Props) {
   const [flaggedWords, setFlaggedWords] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    fetchFlaggedWords().then(setFlaggedWords);
+    fetchFlaggedWords().then((flagged) => {
+      setFlaggedWords(flagged);
+      // Increment article_views for any flagged words that appear in this article
+      const articleWords = article.sentences.flatMap((s) =>
+        s.words.filter((w) => w.pinyin !== '').map((w) => w.chinese)
+      );
+      const seen = articleWords.filter((w) => flagged.has(w));
+      if (seen.length > 0) incrementArticleViews(seen);
+    });
   }, []);
 
   function handleCharPress(sentenceIdx: number, wordIdx: number, word: Word) {

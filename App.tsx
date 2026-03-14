@@ -11,6 +11,7 @@ import { HomeScreen } from './src/screens/HomeScreen';
 import { ArticleScreen } from './src/screens/ArticleScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 import { FlashcardScreen } from './src/screens/FlashcardScreen';
+import { VocabListScreen } from './src/screens/VocabListScreen';
 import { RootStackParamList } from './src/types';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -64,6 +65,11 @@ function AppNavigator() {
             name="Flashcards"
             component={FlashcardScreen}
             options={{ title: 'Flashcards', headerBackTitle: 'Back' }}
+          />
+          <Stack.Screen
+            name="VocabList"
+            component={VocabListScreen}
+            options={{ title: 'My Vocabulary', headerBackTitle: 'Back' }}
           />
           <Stack.Screen
             name="Settings"

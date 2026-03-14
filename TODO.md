@@ -5,6 +5,11 @@
 - [x] Persist flagged words to Supabase — wire existing in-memory flag state to `flagged_words` table
 - [x] Article history — save generated articles to Supabase `article_history` table, show list on Home screen
 - [x] Flashcard mode — quiz flagged words using spaced repetition
+- [x] Vocabulary list screen — table of all flagged words with detail modal (due date, repetitions, view counts)
+- [x] Article view tracking — increment `article_views` on flagged words when they appear in an opened article
+- [x] Flashcard view tracking — increment `flashcard_views` once per card per session (not per "Again")
+- [x] Archive word — soft-delete from active study, preserved for future learning-history dashboard
+- [x] Practice words toggle — include 5 least-seen flagged words in article generation prompt
 
 ## Bugs / Polish
 

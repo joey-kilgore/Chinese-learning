@@ -8,7 +8,7 @@ import {
   View,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { fetchDueFlashcards, updateFlashcardReview } from '../services/supabase';
+import { fetchDueFlashcards, updateFlashcardReview, incrementFlashcardView } from '../services/supabase';
 import { FlaggedWordRow } from '../types';
 import { FONT_CHINESE, FONT_CHINESE_BOLD } from '../styles/fonts';
 
@@ -20,6 +20,8 @@ export function FlashcardScreen() {
   const [revealed, setRevealed] = useState(false);
   const [loading, setLoading] = useState(true);
   const [passed, setPassed] = useState(0);
+  // Track IDs already counted this session so "Again" cards aren't double-counted
+  const viewedIds = React.useRef<Set<string>>(new Set());
 
   useEffect(() => {
     fetchDueFlashcards().then((rows) => {
@@ -31,6 +33,10 @@ export function FlashcardScreen() {
 
   async function handleAnswer(correct: boolean) {
     const card = queue[0];
+    if (!viewedIds.current.has(card.id)) {
+      viewedIds.current.add(card.id);
+      incrementFlashcardView(card.id); // fire-and-forget
+    }
     await updateFlashcardReview(card.id, correct);
     setRevealed(false);
     if (correct) {

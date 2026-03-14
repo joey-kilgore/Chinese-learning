@@ -17,10 +17,13 @@ const CLAUDE_API_URL = Platform.OS === 'web'
   : 'https://api.anthropic.com/v1/messages';
 const MODEL = 'claude-haiku-4-5';
 
-function buildPrompt(hskLevel: HskLevel, topic: string): string {
+function buildPrompt(hskLevel: HskLevel, topic: string, practiceWords?: string[]): string {
   const topicLine = topic.trim()
     ? `The article topic should be: ${topic.trim()}.`
     : 'Choose an interesting everyday topic (e.g. food, weather, family, hobbies, travel).';
+  const practiceLine = practiceWords?.length
+    ? `The learner is currently studying these words — try to naturally include some of them in the article: ${practiceWords.join('、')}。`
+    : '';
 
   return `You are a Chinese language teacher creating comprehensible input (CI) articles.
 
@@ -31,7 +34,7 @@ Guidelines:
 - Introduce 3-6 new words from HSK level ${Math.min(hskLevel + 1, 9)} (the i+1 stretch)
 - Keep sentences clear and natural — not textbook-stiff
 - Use simple, connected prose (not bullet points)
-- ${topicLine}
+- ${topicLine}${practiceLine ? `\n- ${practiceLine}` : ''}
 
 Return ONLY a valid JSON object — no markdown, no explanation, just the JSON — in this exact shape:
 {
@@ -69,7 +72,8 @@ IMPORTANT: For multi-character words, always separate each syllable with a space
 export async function generateArticle(
   apiKey: string,
   hskLevel: HskLevel,
-  topic: string
+  topic: string,
+  practiceWords?: string[]
 ): Promise<Article> {
   if (USE_SAVED) {
     await new Promise((resolve) => setTimeout(resolve, 400));
@@ -96,7 +100,7 @@ export async function generateArticle(
       messages: [
         {
           role: 'user',
-          content: buildPrompt(hskLevel, topic),
+          content: buildPrompt(hskLevel, topic, practiceWords),
         },
       ],
     }),

@@ -35,6 +35,7 @@ export type RootStackParamList = {
   Home: undefined;
   Article: { article: Article };
   Flashcards: undefined;
+  VocabList: undefined;
   Settings: undefined;
 };
 
@@ -48,4 +49,7 @@ export interface FlaggedWordRow {
   interval: number;
   repetitions: number;
   due_date: string;
+  archived: boolean;
+  article_views: number;
+  flashcard_views: number;
 }

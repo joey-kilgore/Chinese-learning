@@ -6,6 +6,7 @@ import {
   Platform,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   TouchableOpacity,
@@ -16,7 +17,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useNavigation } from '@react-navigation/native';
 
 import { generateArticle, USE_SAVED, DEV_API_KEY } from '../services/claudeApi';
-import { saveArticle, fetchArticleHistory, ArticleHistoryRow } from '../services/supabase';
+import { saveArticle, fetchArticleHistory, fetchPracticeWords, ArticleHistoryRow } from '../services/supabase';
 import { HskLevel, RootStackParamList } from '../types';
 
 const API_KEY_STORAGE_KEY = '@chinese_learning/api_key';
@@ -49,6 +50,7 @@ export function HomeScreen() {
   const [loading, setLoading] = useState(false);
   const [hasApiKey, setHasApiKey] = useState(false);
   const [history, setHistory] = useState<ArticleHistoryRow[]>([]);
+  const [practiceToggle, setPracticeToggle] = useState(false);
 
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {
@@ -86,7 +88,12 @@ export function HomeScreen() {
 
     setLoading(true);
     try {
-      const article = await generateArticle(apiKey?.trim() ?? '', hskLevel, topic);
+      let practiceWords: string[] | undefined;
+      if (practiceToggle) {
+        const rows = await fetchPracticeWords(5);
+        practiceWords = rows.map((r) => r.chinese);
+      }
+      const article = await generateArticle(apiKey?.trim() ?? '', hskLevel, topic, practiceWords);
       saveArticle(article); // fire-and-forget; don't block navigation
       navigation.navigate('Article', { article });
     } catch (err: unknown) {
@@ -182,6 +189,22 @@ export function HomeScreen() {
           </View>
         </View>
 
+        {/* Practice Words Toggle */}
+        <View style={styles.card}>
+          <View style={styles.toggleRow}>
+            <View style={styles.toggleLabel}>
+              <Text style={styles.cardTitle}>Practice flagged words</Text>
+              <Text style={styles.cardSubtitle}>Include your 5 least-practiced words in the article</Text>
+            </View>
+            <Switch
+              value={practiceToggle}
+              onValueChange={setPracticeToggle}
+              trackColor={{ false: '#ddd', true: '#f0b3ad' }}
+              thumbColor={practiceToggle ? '#c0392b' : '#bbb'}
+            />
+          </View>
+        </View>
+
         {/* Generate Button */}
         <TouchableOpacity
           style={[styles.generateButton, loading && styles.generateButtonDisabled]}
@@ -200,13 +223,21 @@ export function HomeScreen() {
           words for comprehensible i+1 learning.
         </Text>
 
-        {/* Flashcard Button */}
-        <TouchableOpacity
-          style={styles.flashcardButton}
-          onPress={() => navigation.navigate('Flashcards')}
-        >
-          <Text style={styles.flashcardButtonText}>Review Flashcards</Text>
-        </TouchableOpacity>
+        {/* Study Buttons */}
+        <View style={styles.studyRow}>
+          <TouchableOpacity
+            style={[styles.studyButton, styles.studyButtonOutline]}
+            onPress={() => navigation.navigate('Flashcards')}
+          >
+            <Text style={styles.studyButtonOutlineText}>Flashcards</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.studyButton, styles.studyButtonOutline]}
+            onPress={() => navigation.navigate('VocabList')}
+          >
+            <Text style={styles.studyButtonOutlineText}>My Vocabulary</Text>
+          </TouchableOpacity>
+        </View>
 
         {history.length > 0 && (
           <View style={styles.historySection}>
@@ -362,17 +393,34 @@ const styles = StyleSheet.create({
     color: '#c0392b',
     fontWeight: '600',
   },
-  flashcardButton: {
+  toggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  toggleLabel: {
+    flex: 1,
+    gap: 2,
+  },
+  studyRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  studyButton: {
+    flex: 1,
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: 'center',
+  },
+  studyButtonOutline: {
     borderWidth: 2,
     borderColor: '#c0392b',
     backgroundColor: '#fff',
   },
-  flashcardButtonText: {
+  studyButtonOutlineText: {
     color: '#c0392b',
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
   },
   generateButton: {

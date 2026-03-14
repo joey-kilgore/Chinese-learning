@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
+import { Platform } from 'react-native';
 import { Article, FlaggedWordRow, HskLevel, Sentence, Word } from '../types';
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL!;
@@ -10,7 +11,9 @@ export const supabase = createClient(supabaseUrl, supabaseKey, {
     storage: AsyncStorage,
     autoRefreshToken: true,
     persistSession: true,
-    detectSessionInUrl: false,
+    // On web, let Supabase auto-detect the ?code= in the URL after OAuth redirect.
+    // On native, we handle the deep-link callback manually in AuthContext.
+    detectSessionInUrl: Platform.OS === 'web',
   },
 });
 
@@ -48,9 +51,75 @@ export async function fetchRandomArticle(hskLevel?: HskLevel): Promise<Article |
 }
 
 export async function fetchFlaggedWords(): Promise<Set<string>> {
-  const { data, error } = await supabase.from('flagged_words').select('chinese');
+  const { data, error } = await supabase.from('flagged_words').select('chinese').eq('archived', false);
   if (error) { console.warn('[supabase] fetchFlaggedWords error:', error.message); return new Set(); }
   return new Set((data ?? []).map((r: any) => r.chinese));
+}
+
+export async function fetchAllFlaggedWords(): Promise<FlaggedWordRow[]> {
+  const { data, error } = await supabase
+    .from('flagged_words')
+    .select('id, chinese, pinyin, english, example_sentence, example_sentence_english, interval, repetitions, due_date, archived, article_views, flashcard_views')
+    .eq('archived', false)
+    .order('chinese', { ascending: true });
+  if (error) { console.warn('[supabase] fetchAllFlaggedWords error:', error.message); return []; }
+  return (data ?? []) as FlaggedWordRow[];
+}
+
+export async function archiveWord(id: string): Promise<void> {
+  const { error } = await supabase.from('flagged_words').update({ archived: true }).eq('id', id);
+  if (error) console.warn('[supabase] archiveWord error:', error.message);
+}
+
+// Returns up to `limit` non-archived words with the fewest total views (article + flashcard),
+// prioritising words that need the most practice.
+export async function fetchPracticeWords(limit: number): Promise<FlaggedWordRow[]> {
+  const { data, error } = await supabase
+    .from('flagged_words')
+    .select('id, chinese, pinyin, english, article_views, flashcard_views')
+    .eq('archived', false)
+    .order('article_views', { ascending: true })
+    .order('flashcard_views', { ascending: true })
+    .limit(limit * 3); // fetch a small over-set so we can sort by total in JS
+  if (error) { console.warn('[supabase] fetchPracticeWords error:', error.message); return []; }
+  const rows = (data ?? []) as FlaggedWordRow[];
+  return rows
+    .sort((a, b) => (a.article_views + a.flashcard_views) - (b.article_views + b.flashcard_views))
+    .slice(0, limit);
+}
+
+// Called when an article is opened — increments article_views for any flagged words that appear in it.
+export async function incrementArticleViews(chineseWords: string[]): Promise<void> {
+  if (!chineseWords.length) return;
+  // Fetch matching non-archived flagged words
+  const { data, error } = await supabase
+    .from('flagged_words')
+    .select('id, chinese, article_views')
+    .in('chinese', chineseWords)
+    .eq('archived', false);
+  if (error) { console.warn('[supabase] incrementArticleViews fetch error:', error.message); return; }
+  if (!data?.length) return;
+
+  await Promise.all(
+    (data as { id: string; article_views: number }[]).map(({ id, article_views }) =>
+      supabase.from('flagged_words').update({ article_views: article_views + 1 }).eq('id', id)
+    )
+  );
+}
+
+// Called once per flashcard session when a card is first reviewed.
+export async function incrementFlashcardView(id: string): Promise<void> {
+  const { data, error: fetchErr } = await supabase
+    .from('flagged_words')
+    .select('flashcard_views')
+    .eq('id', id)
+    .single();
+  if (fetchErr || !data) { console.warn('[supabase] incrementFlashcardView fetch error:', fetchErr?.message); return; }
+  const { error } = await supabase
+    .from('flagged_words')
+    .update({ flashcard_views: (data as { flashcard_views: number }).flashcard_views + 1 })
+    .eq('id', id);
+  if (error) console.warn('[supabase] incrementFlashcardView update error:', error.message);
 }
 
 export async function flagWord(word: Word, sentence?: Sentence): Promise<void> {
@@ -71,7 +140,8 @@ export async function fetchDueFlashcards(): Promise<FlaggedWordRow[]> {
   const now = new Date().toISOString();
   const { data, error } = await supabase
     .from('flagged_words')
-    .select('id, chinese, pinyin, english, example_sentence, example_sentence_english, interval, repetitions, due_date')
+    .select('id, chinese, pinyin, english, example_sentence, example_sentence_english, interval, repetitions, due_date, archived, article_views, flashcard_views')
+    .eq('archived', false)
     .lte('due_date', now)
     .order('due_date', { ascending: true });
   if (error) { console.warn('[supabase] fetchDueFlashcards error:', error.message); return []; }

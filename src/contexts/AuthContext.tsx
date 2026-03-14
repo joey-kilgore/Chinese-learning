@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { Alert } from 'react-native';
+import { Alert, Platform } from 'react-native';
 import { Session, User } from '@supabase/supabase-js';
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
@@ -79,10 +79,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   async function signInWithGoogle() {
-    // The redirect URL logged here must be in Supabase → Authentication → URL Configuration → Redirect URLs.
-    // For Expo Go it changes with your local IP/port; for production builds it will be chinese-learning://auth/callback.
-    const redirectUrl = Linking.createURL('auth/callback');
+    const redirectUrl = Platform.OS === 'web'
+      // On web (Vercel), redirect back to the live site's origin.
+      // Supabase will detect the ?code= automatically via detectSessionInUrl: true.
+      ? `${window.location.origin}/auth/callback`
+      // On native, use a deep link (Expo Go or production scheme).
+      : Linking.createURL('auth/callback');
 
+    if (Platform.OS === 'web') {
+      // Use skipBrowserRedirect so Supabase gives us the URL without opening anything.
+      // We then redirect the current tab ourselves — this prevents Supabase from opening
+      // a new window/tab on some versions of the JS client.
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: redirectUrl, skipBrowserRedirect: true },
+      });
+      if (error) { Alert.alert('Sign-in error', error.message); return; }
+      if (!data.url) { Alert.alert('Sign-in error', 'No OAuth URL returned from Supabase.'); return; }
+      window.location.href = data.url; // same-tab redirect — no popup
+      return;
+    }
+
+    // Native: open an in-app browser session and handle the deep-link callback.
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: { redirectTo: redirectUrl, skipBrowserRedirect: true },
