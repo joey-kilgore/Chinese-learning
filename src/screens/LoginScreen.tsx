@@ -13,16 +13,17 @@ import { useAuth } from '../contexts/AuthContext';
 
 export function LoginScreen() {
   const { signInWithEmail, signInWithGoogle } = useAuth();
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
 
   async function handleEmailSignIn() {
-    if (!email.trim() || !password) return;
+    if (!username.trim() || !password) return;
     setLoading(true);
     try {
-      await signInWithEmail(email.trim(), password);
+      // Supabase requires an email format — append a fixed domain internally
+      await signInWithEmail(`${username.trim().toLowerCase()}@kedong.app`, password);
     } finally {
       setLoading(false);
     }
@@ -53,19 +54,18 @@ export function LoginScreen() {
       <View style={styles.authCard}>
         <Text style={styles.authTitle}>Get started</Text>
         <Text style={styles.authSubtitle}>
-          Enter an email and password — we'll create your account automatically if it doesn't exist yet.
+          Choose a username and password — we'll create your account automatically if it doesn't exist yet.
         </Text>
 
         <TextInput
           style={styles.input}
-          value={email}
-          onChangeText={setEmail}
-          placeholder="Email"
+          value={username}
+          onChangeText={setUsername}
+          placeholder="Username"
           placeholderTextColor="#aaa"
           autoCapitalize="none"
           autoCorrect={false}
-          keyboardType="email-address"
-          textContentType="emailAddress"
+          textContentType="username"
         />
         <TextInput
           style={styles.input}
@@ -80,9 +80,9 @@ export function LoginScreen() {
         />
 
         <TouchableOpacity
-          style={[styles.primaryButton, (loading || !email.trim() || !password) && styles.buttonDisabled]}
+          style={[styles.primaryButton, (loading || !username.trim() || !password) && styles.buttonDisabled]}
           onPress={handleEmailSignIn}
-          disabled={loading || !email.trim() || !password}
+          disabled={loading || !username.trim() || !password}
         >
           {loading ? (
             <ActivityIndicator color="#fff" />

@@ -111,7 +111,9 @@ export function SettingsScreen() {
 
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Account</Text>
-          <Text style={styles.description}>Signed in as {user?.email}</Text>
+          <Text style={styles.description}>
+            Signed in as {user?.email?.replace('@kedong.app', '') ?? user?.email}
+          </Text>
           <TouchableOpacity style={styles.signOutButton} onPress={signOut}>
             <Text style={styles.signOutButtonText}>Sign out</Text>
           </TouchableOpacity>
