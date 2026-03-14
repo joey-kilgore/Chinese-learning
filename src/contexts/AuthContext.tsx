@@ -83,15 +83,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
     if (!signInError) return;
 
-    // If credentials are wrong (not "user not found"), surface the error
-    if (!signInError.message.toLowerCase().includes('invalid login credentials')) {
-      Alert.alert('Sign-in error', signInError.message);
-      return;
-    }
-
-    // First time — create the account automatically
+    // Supabase returns "invalid login credentials" for both wrong password and unknown user.
+    // Try signUp to disambiguate: if it succeeds, the account is new; if it returns
+    // "already registered", the user exists and the password was just wrong.
     const { error: signUpError } = await supabase.auth.signUp({ email, password });
-    if (signUpError) Alert.alert('Sign-up error', signUpError.message);
+    if (!signUpError) return; // new account created and signed in
+
+    const msg = signUpError.message.toLowerCase();
+    if (msg.includes('already registered') || msg.includes('already been registered')) {
+      Alert.alert('Incorrect password', 'That username exists — please check your password.');
+    } else {
+      Alert.alert('Sign-in error', signUpError.message);
+    }
   }
 
   async function signInWithGoogle() {
