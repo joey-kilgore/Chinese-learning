@@ -1,28 +1,47 @@
 import React, { useState } from 'react';
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
 
 export function LoginScreen() {
-  const { signInWithGoogle } = useAuth();
+  const { signInWithEmail, signInWithGoogle } = useAuth();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
 
-  async function handleGoogleSignIn() {
+  async function handleEmailSignIn() {
+    if (!email.trim() || !password) return;
     setLoading(true);
     try {
-      await signInWithGoogle();
+      await signInWithEmail(email.trim(), password);
     } finally {
       setLoading(false);
     }
   }
 
+  async function handleGoogleSignIn() {
+    setGoogleLoading(true);
+    try {
+      await signInWithGoogle();
+    } finally {
+      setGoogleLoading(false);
+    }
+  }
+
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
       <View style={styles.hero}>
         <Text style={styles.title}>汉语阅读</Text>
         <Text style={styles.subtitle}>Chinese Reading Generator</Text>
@@ -34,15 +53,56 @@ export function LoginScreen() {
       <View style={styles.authCard}>
         <Text style={styles.authTitle}>Get started</Text>
         <Text style={styles.authSubtitle}>
-          Sign in to save your progress and flagged words across devices.
+          Enter an email and password — we'll create your account automatically if it doesn't exist yet.
         </Text>
 
+        <TextInput
+          style={styles.input}
+          value={email}
+          onChangeText={setEmail}
+          placeholder="Email"
+          placeholderTextColor="#aaa"
+          autoCapitalize="none"
+          autoCorrect={false}
+          keyboardType="email-address"
+          textContentType="emailAddress"
+        />
+        <TextInput
+          style={styles.input}
+          value={password}
+          onChangeText={setPassword}
+          placeholder="Password"
+          placeholderTextColor="#aaa"
+          secureTextEntry
+          textContentType="password"
+          onSubmitEditing={handleEmailSignIn}
+          returnKeyType="go"
+        />
+
         <TouchableOpacity
-          style={[styles.googleButton, loading && styles.googleButtonDisabled]}
-          onPress={handleGoogleSignIn}
-          disabled={loading}
+          style={[styles.primaryButton, (loading || !email.trim() || !password) && styles.buttonDisabled]}
+          onPress={handleEmailSignIn}
+          disabled={loading || !email.trim() || !password}
         >
           {loading ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.primaryButtonText}>Continue</Text>
+          )}
+        </TouchableOpacity>
+
+        <View style={styles.divider}>
+          <View style={styles.dividerLine} />
+          <Text style={styles.dividerText}>or</Text>
+          <View style={styles.dividerLine} />
+        </View>
+
+        <TouchableOpacity
+          style={[styles.googleButton, googleLoading && styles.buttonDisabled]}
+          onPress={handleGoogleSignIn}
+          disabled={googleLoading}
+        >
+          {googleLoading ? (
             <ActivityIndicator color="#444" />
           ) : (
             <>
@@ -52,7 +112,7 @@ export function LoginScreen() {
           )}
         </TouchableOpacity>
       </View>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -106,6 +166,46 @@ const styles = StyleSheet.create({
     color: '#666',
     lineHeight: 20,
   },
+  input: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 15,
+    color: '#1a1a1a',
+    backgroundColor: '#fafafa',
+  },
+  primaryButton: {
+    backgroundColor: '#c0392b',
+    borderRadius: 10,
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  primaryButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  buttonDisabled: {
+    opacity: 0.5,
+  },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginVertical: 2,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#eee',
+  },
+  dividerText: {
+    fontSize: 13,
+    color: '#aaa',
+  },
   googleButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -115,16 +215,12 @@ const styles = StyleSheet.create({
     borderColor: '#ddd',
     borderRadius: 10,
     paddingVertical: 14,
-    marginTop: 4,
     gap: 10,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.06,
     shadowRadius: 3,
     elevation: 1,
-  },
-  googleButtonDisabled: {
-    opacity: 0.6,
   },
   googleIcon: {
     fontSize: 18,

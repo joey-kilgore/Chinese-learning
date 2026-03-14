@@ -10,6 +10,7 @@ interface AuthContextValue {
   user: User | null;
   session: Session | null;
   loading: boolean;
+  signInWithEmail: (email: string, password: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
 }
@@ -78,6 +79,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
+  async function signInWithEmail(email: string, password: string) {
+    const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+    if (!signInError) return;
+
+    // If credentials are wrong (not "user not found"), surface the error
+    if (!signInError.message.toLowerCase().includes('invalid login credentials')) {
+      Alert.alert('Sign-in error', signInError.message);
+      return;
+    }
+
+    // First time — create the account automatically
+    const { error: signUpError } = await supabase.auth.signUp({ email, password });
+    if (signUpError) Alert.alert('Sign-up error', signUpError.message);
+  }
+
   async function signInWithGoogle() {
     const redirectUrl = Platform.OS === 'web'
       // On web (Vercel), redirect back to the live site's origin.
@@ -123,7 +139,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user: session?.user ?? null, session, loading, signInWithGoogle, signOut }}>
+    <AuthContext.Provider value={{ user: session?.user ?? null, session, loading, signInWithEmail, signInWithGoogle, signOut }}>
       {children}
     </AuthContext.Provider>
   );
