@@ -1,5 +1,5 @@
 import { Platform } from 'react-native';
-import { Article, HskLevel } from '../types';
+import { Article, ArticleLength, HskLevel } from '../types';
 import { getMockArticle } from './mockData';
 import { fetchRandomArticle } from './supabase';
 
@@ -15,9 +15,17 @@ export const DEV_API_KEY = process.env.EXPO_PUBLIC_CLAUDE_API_KEY ?? '';
 const CLAUDE_API_URL = Platform.OS === 'web'
   ? '/api/claude'
   : 'https://api.anthropic.com/v1/messages';
-const MODEL = 'claude-haiku-4-5';
+const MODEL_STANDARD = 'claude-haiku-4-5';
+const MODEL_LONG = 'claude-sonnet-4-6';
 
-function buildPrompt(hskLevel: HskLevel, topic: string, practiceWords?: string[]): string {
+const LENGTH_CONFIG: Record<ArticleLength, { sentences: string; label: string }> = {
+  short:  { sentences: '8–12',  label: 'short' },
+  medium: { sentences: '15–20', label: 'medium-length' },
+  long:   { sentences: '25–30', label: 'long' },
+};
+
+function buildPrompt(hskLevel: HskLevel, topic: string, length: ArticleLength, practiceWords?: string[]): string {
+  const { sentences, label } = LENGTH_CONFIG[length];
   const topicLine = topic.trim()
     ? `The article topic should be: ${topic.trim()}.`
     : 'Choose an interesting everyday topic (e.g. food, weather, family, hobbies, travel).';
@@ -27,7 +35,7 @@ function buildPrompt(hskLevel: HskLevel, topic: string, practiceWords?: string[]
 
   return `You are a Chinese language teacher creating comprehensible input (CI) articles.
 
-Create a short article (8-12 sentences) for a learner at HSK level ${hskLevel}.
+Create a ${label} article (${sentences} sentences) for a learner at HSK level ${hskLevel}.
 
 Guidelines:
 - Use vocabulary primarily from HSK levels 1-${hskLevel} (known words)
@@ -73,6 +81,7 @@ export async function generateArticle(
   apiKey: string,
   hskLevel: HskLevel,
   topic: string,
+  length: ArticleLength = 'short',
   practiceWords?: string[]
 ): Promise<Article> {
   if (USE_SAVED) {
@@ -84,7 +93,7 @@ export async function generateArticle(
 
   const resolvedKey = apiKey || DEV_API_KEY;
   if (!resolvedKey) {
-    throw new Error('No API key provided. Add one in Settings or set EXPO_PUBLIC_CLAUDE_API_KEY in .env.');
+    throw new Error('No API key provided. Add your Anthropic API key in Settings.');
   }
 
   const response = await fetch(CLAUDE_API_URL, {
@@ -95,12 +104,12 @@ export async function generateArticle(
       'anthropic-version': '2023-06-01',
     },
     body: JSON.stringify({
-      model: MODEL,
-      max_tokens: 8192,
+      model: length === 'long' ? MODEL_LONG : MODEL_STANDARD,
+      max_tokens: length === 'long' ? 16000 : 8192,
       messages: [
         {
           role: 'user',
-          content: buildPrompt(hskLevel, topic, practiceWords),
+          content: buildPrompt(hskLevel, topic, length, practiceWords),
         },
       ],
     }),
@@ -109,6 +118,9 @@ export async function generateArticle(
   if (!response.ok) {
     const errorBody = await response.text();
     console.error('[claudeApi] HTTP error', response.status, errorBody);
+    if (response.status === 404 && Platform.OS === 'web') {
+      throw new Error('API proxy not found. For local web testing, run "vercel dev" instead of "expo start".');
+    }
     if (response.status === 401) {
       throw new Error('Invalid API key. Please check your Anthropic API key in Settings.');
     }

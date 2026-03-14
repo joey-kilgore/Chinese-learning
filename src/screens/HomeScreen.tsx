@@ -12,17 +12,23 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useNavigation } from '@react-navigation/native';
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { generateArticle, USE_SAVED, DEV_API_KEY } from '../services/claudeApi';
-import { saveArticle, fetchArticleHistory, fetchPracticeWords, ArticleHistoryRow } from '../services/supabase';
-import { HskLevel, RootStackParamList } from '../types';
+import { saveArticle, fetchArticleHistory, fetchPracticeWords, fetchRandomArticle, ArticleHistoryRow } from '../services/supabase';
+import { ArticleLength, HskLevel, RootStackParamList } from '../types';
 
 const API_KEY_STORAGE_KEY = '@chinese_learning/api_key';
 
 const HSK_LEVELS: HskLevel[] = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+
+const ARTICLE_LENGTHS: { value: ArticleLength; label: string; detail: string }[] = [
+  { value: 'short',  label: 'Short',  detail: '8–12 sentences' },
+  { value: 'medium', label: 'Medium', detail: '15–20 sentences' },
+  { value: 'long',   label: 'Long',   detail: '25–30 sentences' },
+];
 
 const HSK_DESCRIPTIONS: Record<HskLevel, string> = {
   1: 'Beginner — ~150 words',
@@ -51,6 +57,8 @@ export function HomeScreen() {
   const [hasApiKey, setHasApiKey] = useState(false);
   const [history, setHistory] = useState<ArticleHistoryRow[]>([]);
   const [practiceToggle, setPracticeToggle] = useState(false);
+  const [articleLength, setArticleLength] = useState<ArticleLength>('short');
+  const [useSavedArticle, setUseSavedArticle] = useState(false);
 
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {
@@ -74,27 +82,31 @@ export function HomeScreen() {
 
   async function handleGenerate() {
     const apiKey = await AsyncStorage.getItem(API_KEY_STORAGE_KEY);
-    if (!USE_SAVED && !apiKey?.trim() && !DEV_API_KEY) {
-      Alert.alert(
-        'API Key Required',
-        'Please add your Anthropic API key in Settings before generating articles.',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Go to Settings', onPress: () => navigation.navigate('Settings') },
-        ]
-      );
-      return;
-    }
+    const noKey = !USE_SAVED && !apiKey?.trim() && !DEV_API_KEY;
 
     setLoading(true);
     try {
-      let practiceWords: string[] | undefined;
-      if (practiceToggle) {
-        const rows = await fetchPracticeWords(5);
-        practiceWords = rows.map((r) => r.chinese);
+      let article;
+      if (useSavedArticle || noKey) {
+        article = await fetchRandomArticle(hskLevel);
+        if (!article) {
+          Alert.alert(
+            'No saved articles yet',
+            useSavedArticle
+              ? 'No saved articles are available for this HSK level yet.'
+              : 'Add your Anthropic API key in Settings to generate articles.'
+          );
+          return;
+        }
+      } else {
+        let practiceWords: string[] | undefined;
+        if (practiceToggle) {
+          const rows = await fetchPracticeWords(5);
+          practiceWords = rows.map((r) => r.chinese);
+        }
+        article = await generateArticle(apiKey?.trim() ?? '', hskLevel, topic, articleLength, practiceWords);
+        saveArticle(article); // fire-and-forget
       }
-      const article = await generateArticle(apiKey?.trim() ?? '', hskLevel, topic, practiceWords);
-      saveArticle(article); // fire-and-forget; don't block navigation
       navigation.navigate('Article', { article });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'An unexpected error occurred.';
@@ -133,7 +145,7 @@ export function HomeScreen() {
             onPress={() => navigation.navigate('Settings')}
           >
             <Text style={styles.bannerText}>
-              Set your Anthropic API key in Settings to get started
+              No API key set — articles will be drawn from saved content. Add your Anthropic key in Settings to generate new ones.
             </Text>
           </TouchableOpacity>
         )}
@@ -189,8 +201,60 @@ export function HomeScreen() {
           </View>
         </View>
 
-        {/* Practice Words Toggle */}
+        {/* Article Source */}
         <View style={styles.card}>
+          <Text style={styles.cardTitle}>Article Source</Text>
+          <View style={styles.sourceRow}>
+            <TouchableOpacity
+              style={[styles.sourceButton, !useSavedArticle && styles.sourceButtonActive]}
+              onPress={() => setUseSavedArticle(false)}
+            >
+              <Text style={[styles.sourceButtonText, !useSavedArticle && styles.sourceButtonTextActive]}>
+                Generate New
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.sourceButton, useSavedArticle && styles.sourceButtonActive]}
+              onPress={() => setUseSavedArticle(true)}
+            >
+              <Text style={[styles.sourceButtonText, useSavedArticle && styles.sourceButtonTextActive]}>
+                Use Saved
+              </Text>
+            </TouchableOpacity>
+          </View>
+          {useSavedArticle && (
+            <Text style={styles.cardSubtitle}>
+              Fetch a pre-made article from our library — no API key needed.
+            </Text>
+          )}
+        </View>
+
+        {/* Article Length */}
+        <View style={[styles.card, useSavedArticle && styles.cardDisabled]}>
+          <Text style={styles.cardTitle}>Article Length</Text>
+          <View style={styles.lengthRow}>
+            {ARTICLE_LENGTHS.map(({ value, label, detail }) => (
+              <TouchableOpacity
+                key={value}
+                style={[styles.lengthButton, articleLength === value && styles.lengthButtonActive]}
+                onPress={() => setArticleLength(value)}
+              >
+                <Text style={[styles.lengthButtonLabel, articleLength === value && styles.lengthButtonLabelActive]}>
+                  {label}
+                </Text>
+                <Text style={[styles.lengthButtonDetail, articleLength === value && styles.lengthButtonDetailActive]}>
+                  {detail}
+                </Text>
+                <Text style={[styles.lengthButtonBadge, articleLength === value && styles.lengthButtonBadgeActive]}>
+                  {value === 'long' ? 'Sonnet' : 'Haiku'}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        {/* Practice Words Toggle */}
+        <View style={[styles.card, useSavedArticle && styles.cardDisabled]}>
           <View style={styles.toggleRow}>
             <View style={styles.toggleLabel}>
               <Text style={styles.cardTitle}>Practice flagged words</Text>
@@ -214,13 +278,14 @@ export function HomeScreen() {
           {loading ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={styles.generateButtonText}>Generate Article</Text>
+            <Text style={styles.generateButtonText}>{useSavedArticle ? 'Get Saved Article' : 'Generate Article'}</Text>
           )}
         </TouchableOpacity>
 
         <Text style={styles.hint}>
           Articles use HSK {hskLevel} vocabulary with a few level-{Math.min(hskLevel + 1, 9)}{' '}
           words for comprehensible i+1 learning.
+          {articleLength === 'long' ? ' Long articles use Claude Sonnet — higher quality but more expensive per token.' : ''}
         </Text>
 
         {/* Study Buttons */}
@@ -392,6 +457,83 @@ const styles = StyleSheet.create({
   chipTextActive: {
     color: '#c0392b',
     fontWeight: '600',
+  },
+  lengthRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  lengthButton: {
+    flex: 1,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: '#ddd',
+    backgroundColor: '#fafafa',
+    paddingVertical: 10,
+    paddingHorizontal: 6,
+    alignItems: 'center',
+    gap: 2,
+  },
+  lengthButtonActive: {
+    borderColor: '#c0392b',
+    backgroundColor: '#fff0ee',
+  },
+  lengthButtonLabel: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#555',
+  },
+  lengthButtonLabelActive: {
+    color: '#c0392b',
+  },
+  lengthButtonDetail: {
+    fontSize: 11,
+    color: '#aaa',
+  },
+  lengthButtonDetailActive: {
+    color: '#e08070',
+  },
+  lengthButtonBadge: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#aaa',
+    backgroundColor: '#eee',
+    borderRadius: 4,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    marginTop: 2,
+    overflow: 'hidden',
+  },
+  lengthButtonBadgeActive: {
+    color: '#c0392b',
+    backgroundColor: '#fdd5d0',
+  },
+  cardDisabled: {
+    opacity: 0.45,
+  },
+  sourceRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  sourceButton: {
+    flex: 1,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: '#ddd',
+    backgroundColor: '#fafafa',
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  sourceButtonActive: {
+    borderColor: '#c0392b',
+    backgroundColor: '#fff0ee',
+  },
+  sourceButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#555',
+  },
+  sourceButtonTextActive: {
+    color: '#c0392b',
   },
   toggleRow: {
     flexDirection: 'row',

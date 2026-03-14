@@ -179,9 +179,9 @@ The app deploys automatically on every push to the tracked branch.
 | --- | --- |
 | `EXPO_PUBLIC_SUPABASE_URL` | Supabase project URL |
 | `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Supabase anon/public key |
-| `EXPO_PUBLIC_CLAUDE_API_KEY` | Anthropic API key (used server-side by the `/api/claude` proxy) |
+| `EXPO_PUBLIC_CLAUDE_API_KEY` | *(optional)* Dev-only Anthropic key for the Vercel environment |
 
-The [api/claude.ts](api/claude.ts) serverless function proxies Claude API calls from the browser to avoid CORS. On native, the app calls Anthropic directly.
+The [api/claude.ts](api/claude.ts) serverless function proxies Claude API calls from the browser to avoid CORS. Each user supplies their own Anthropic API key via the Settings screen; the proxy forwards it to Anthropic. Users without a key are served articles from the saved library instead.
 
 ---
 

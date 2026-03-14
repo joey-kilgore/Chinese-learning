@@ -32,10 +32,7 @@ export function SettingsScreen() {
   async function handleSave() {
     const trimmed = apiKey.trim();
     if (!trimmed.startsWith('sk-ant-')) {
-      Alert.alert(
-        'Invalid key',
-        'Anthropic API keys start with "sk-ant-". Please check your key.'
-      );
+      Alert.alert('Invalid key', 'Anthropic API keys start with "sk-ant-". Please check your key.');
       return;
     }
     await AsyncStorage.setItem(API_KEY_STORAGE_KEY, trimmed);
@@ -44,17 +41,24 @@ export function SettingsScreen() {
   }
 
   async function handleClear() {
-    Alert.alert('Remove API key', 'Are you sure you want to remove your saved API key?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Remove',
-        style: 'destructive',
-        onPress: async () => {
-          await AsyncStorage.removeItem(API_KEY_STORAGE_KEY);
-          setApiKey('');
+    if (Platform.OS === 'web') {
+      if (window.confirm('Remove your saved API key?')) {
+        await AsyncStorage.removeItem(API_KEY_STORAGE_KEY);
+        setApiKey('');
+      }
+    } else {
+      Alert.alert('Remove API key', 'Are you sure you want to remove your saved API key?', [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            await AsyncStorage.removeItem(API_KEY_STORAGE_KEY);
+            setApiKey('');
+          },
         },
-      },
-    ]);
+      ]);
+    }
   }
 
   if (loading) {
@@ -74,8 +78,8 @@ export function SettingsScreen() {
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Anthropic API Key</Text>
           <Text style={styles.description}>
-            Your API key is stored locally on this device and never sent anywhere except directly to
-            Anthropic's servers when generating articles.
+            Your key is stored locally on this device and forwarded directly to Anthropic when
+            generating articles. Without a key, you'll be served articles from our saved library.
           </Text>
           <Text style={styles.label}>API Key</Text>
           <TextInput

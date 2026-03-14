@@ -1,8 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 // Proxy for Anthropic API — needed because browsers block direct calls (CORS).
-// The client sends its own API key in x-api-key; we forward it as-is.
-// The app owner's key is never stored here.
+// Each user supplies their own API key; we forward it to Anthropic as-is.
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');

@@ -1,4 +1,5 @@
 export type HskLevel = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
+export type ArticleLength = 'short' | 'medium' | 'long';
 
 export interface Word {
   chinese: string;
