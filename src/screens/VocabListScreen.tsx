@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Modal,
   ScrollView,
   StyleSheet,
@@ -29,6 +28,7 @@ export function VocabListScreen() {
   const [words, setWords] = useState<FlaggedWordRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<FlaggedWordRow | null>(null);
+  const [confirmingArchive, setConfirmingArchive] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -41,23 +41,12 @@ export function VocabListScreen() {
     load();
   }, [load]);
 
-  async function handleArchive(word: FlaggedWordRow) {
-    Alert.alert(
-      'Archive word?',
-      `"${word.chinese}" will be removed from active study but saved for your learning history.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Archive',
-          style: 'destructive',
-          onPress: async () => {
-            setSelected(null);
-            await archiveWord(word.id);
-            setWords((prev) => prev.filter((w) => w.id !== word.id));
-          },
-        },
-      ]
-    );
+  async function confirmArchive() {
+    if (!selected) return;
+    setConfirmingArchive(false);
+    setSelected(null);
+    await archiveWord(selected.id);
+    setWords((prev) => prev.filter((w) => w.id !== selected.id));
   }
 
   if (loading) {
@@ -115,12 +104,12 @@ export function VocabListScreen() {
         visible={!!selected}
         transparent
         animationType="slide"
-        onRequestClose={() => setSelected(null)}
+        onRequestClose={() => { setSelected(null); setConfirmingArchive(false); }}
       >
         <TouchableOpacity
           style={styles.modalOverlay}
           activeOpacity={1}
-          onPress={() => setSelected(null)}
+          onPress={() => { setSelected(null); setConfirmingArchive(false); }}
         />
         {selected && (
           <View style={styles.sheet}>
@@ -168,16 +157,36 @@ export function VocabListScreen() {
             )}
 
             {/* Archive */}
-            <TouchableOpacity
-              style={styles.archiveButton}
-              onPress={() => handleArchive(selected)}
-            >
-              <Text style={styles.archiveButtonText}>Archive word</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.dismissButton} onPress={() => setSelected(null)}>
-              <Text style={styles.dismissButtonText}>Close</Text>
-            </TouchableOpacity>
+            {confirmingArchive ? (
+              <View style={styles.confirmBox}>
+                <Text style={styles.confirmText}>
+                  Remove <Text style={styles.confirmWord}>{selected.chinese}</Text> from active study?
+                </Text>
+                <View style={styles.confirmButtons}>
+                  <TouchableOpacity
+                    style={styles.confirmCancel}
+                    onPress={() => setConfirmingArchive(false)}
+                  >
+                    <Text style={styles.confirmCancelText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.confirmArchive} onPress={confirmArchive}>
+                    <Text style={styles.confirmArchiveText}>Archive</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : (
+              <>
+                <TouchableOpacity
+                  style={styles.archiveButton}
+                  onPress={() => setConfirmingArchive(true)}
+                >
+                  <Text style={styles.archiveButtonText}>Archive word</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.dismissButton} onPress={() => setSelected(null)}>
+                  <Text style={styles.dismissButtonText}>Close</Text>
+                </TouchableOpacity>
+              </>
+            )}
           </View>
         )}
       </Modal>
@@ -396,5 +405,53 @@ const styles = StyleSheet.create({
   dismissButtonText: {
     color: '#999',
     fontSize: 15,
+  },
+
+  confirmBox: {
+    backgroundColor: '#fff5f5',
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#fcc',
+    padding: 16,
+    gap: 12,
+  },
+  confirmText: {
+    fontSize: 14,
+    color: '#444',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  confirmWord: {
+    fontFamily: FONT_CHINESE_BOLD,
+    fontSize: 16,
+    color: '#1a1a1a',
+  },
+  confirmButtons: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  confirmCancel: {
+    flex: 1,
+    paddingVertical: 11,
+    borderRadius: 8,
+    backgroundColor: '#f0f0f0',
+    alignItems: 'center',
+  },
+  confirmCancelText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#555',
+  },
+  confirmArchive: {
+    flex: 1,
+    paddingVertical: 11,
+    borderRadius: 8,
+    backgroundColor: '#e74c3c',
+    alignItems: 'center',
+  },
+  confirmArchiveText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#fff',
   },
 });

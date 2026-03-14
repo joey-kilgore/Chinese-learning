@@ -148,6 +148,12 @@ export function ArticleScreen({ route }: Props) {
   }, []);
 
   function handleCharPress(sentenceIdx: number, wordIdx: number, word: Word) {
+    // If global pinyin is on, pinyin is already visible — go straight to popup
+    if (showPinyin) {
+      setPopup({ word, sentence: article.sentences[sentenceIdx] });
+      return;
+    }
+
     const alreadyRevealed = revealedPinyin[sentenceIdx]?.has(wordIdx) ?? false;
 
     if (alreadyRevealed) {
@@ -213,7 +219,9 @@ export function ArticleScreen({ route }: Props) {
 
       {/* Tap hint */}
       <Text style={styles.hint}>
-        Tap a word to reveal pinyin · tap again for definition
+        {showPinyin
+          ? 'Tap any word for its definition'
+          : 'Tap a word to reveal pinyin · tap again for definition'}
       </Text>
 
       {/* Title */}
