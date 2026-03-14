@@ -26,7 +26,7 @@
 
 ## Infrastructure
 
-- [ ] Set up EAS Build for generating real iOS/Android `.ipa`/`.apk` files (also fixes OAuth redirect URL stability — replaces dynamic `exp://` with stable `chinese-learning://`)
+- [x] Set up EAS Build — project ID, bundle IDs (`io.kedong.app`), `eas.json` profiles (development / preview / production), app scheme `kedong://`
 - [ ] Add ESLint + Prettier config
 - [ ] Write unit tests for `claudeApi.ts` prompt builder and JSON parser
 
