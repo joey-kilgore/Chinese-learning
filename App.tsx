@@ -117,8 +117,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#f5f5f5',
   },
   settingsButton: {
-    paddingHorizontal: 4,
-    paddingVertical: 2,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
   },
   settingsIcon: {
     fontSize: 22,

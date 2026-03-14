@@ -58,7 +58,7 @@ export function HomeScreen() {
   const [history, setHistory] = useState<ArticleHistoryRow[]>([]);
   const [practiceToggle, setPracticeToggle] = useState(false);
   const [articleLength, setArticleLength] = useState<ArticleLength>('short');
-  const [useSavedArticle, setUseSavedArticle] = useState(false);
+  const [useSavedArticle, setUseSavedArticle] = useState(true);
 
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {
@@ -77,7 +77,9 @@ export function HomeScreen() {
 
   async function checkApiKey() {
     const key = await AsyncStorage.getItem(API_KEY_STORAGE_KEY);
-    setHasApiKey(!!key?.trim() || !!DEV_API_KEY);
+    const hasKey = !!key?.trim() || !!DEV_API_KEY;
+    setHasApiKey(hasKey);
+    if (hasKey) setUseSavedArticle(false);
   }
 
   async function handleGenerate() {

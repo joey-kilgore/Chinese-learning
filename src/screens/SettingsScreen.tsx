@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   ScrollView,
   StyleSheet,
@@ -81,6 +82,9 @@ export function SettingsScreen() {
             Your key is stored locally on this device and forwarded directly to Anthropic when
             generating articles. Without a key, you'll be served articles from our saved library.
           </Text>
+          <TouchableOpacity onPress={() => Linking.openURL('https://console.anthropic.com/settings/keys')}>
+            <Text style={styles.link}>Get an API key at console.anthropic.com →</Text>
+          </TouchableOpacity>
           <Text style={styles.label}>API Key</Text>
           <TextInput
             style={styles.input}
@@ -156,6 +160,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#555',
     lineHeight: 20,
+  },
+  link: {
+    fontSize: 13,
+    color: '#c0392b',
+    textDecorationLine: 'underline',
   },
   label: {
     fontSize: 13,
